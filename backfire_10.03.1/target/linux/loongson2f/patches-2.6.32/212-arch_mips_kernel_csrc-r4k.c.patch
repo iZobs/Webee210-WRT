@@ -1,0 +1,11 @@
+--- linux-2.6.32.33/arch/mips/kernel/csrc-r4k.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/csrc-r4k.c	2011-03-26 03:39:49.000000000 +0800
+@@ -32,6 +32,8 @@
+ 
+ 	clocksource_set_clock(&clocksource_mips, mips_hpt_frequency);
+ 
++	setup_hres_sched_clock(clocksource_mips, mips_hpt_frequency);
++
+ 	clocksource_register(&clocksource_mips);
+ 
+ 	return 0;

@@ -1,0 +1,12 @@
+diff -Nur linux-2.6.32.33//net/rfkill/core.c linux-2.6.32.33-loongson2f//net/rfkill/core.c
+--- linux-2.6.32.33//net/rfkill/core.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f//net/rfkill/core.c	2011-03-26 03:39:49.000000000 +0800
+@@ -111,7 +111,7 @@
+ static DEFINE_MUTEX(rfkill_global_mutex);
+ static LIST_HEAD(rfkill_fds);	/* list of open fds of /dev/rfkill */
+ 
+-static unsigned int rfkill_default_state = 1;
++static unsigned int rfkill_default_state = 0;
+ module_param_named(default_state, rfkill_default_state, uint, 0444);
+ MODULE_PARM_DESC(default_state,
+ 		 "Default initial state for all radio types, 0 = radio off");

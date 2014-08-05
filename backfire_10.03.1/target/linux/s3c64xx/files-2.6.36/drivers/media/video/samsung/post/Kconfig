@@ -1,0 +1,11 @@
+#
+# Configuration for Post Porcessor
+#
+
+config VIDEO_POST
+	bool "Samsung Post Processor Driver" 
+	depends on VIDEO_SAMSUNG && (ARCH_S3C64XX || ARCH_S5P64XX)
+	default n
+	---help---
+	  This is a post processor driver for Samsung S3C6410 and S5P6440.
+

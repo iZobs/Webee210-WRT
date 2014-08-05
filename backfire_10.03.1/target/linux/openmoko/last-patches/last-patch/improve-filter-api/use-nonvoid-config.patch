@@ -1,0 +1,673 @@
+Use non-void configurations
+
+From: Nelson Castillo <arhuaco@freaks-unidos.net>
+
+This patch defines a ts_filter_configuration structure to
+avoid using void* in the filter initialization, fixing another
+upstream correction. This also makes the initialization more readable.
+
+Tested in GTA02/rev6.
+
+Other changes:
+
+ ~ Comment filter configuration structures.
+ ~ ts_filter.c:ts_filter_chain_create improved.
+ ~ Small cleanups.
+ ~ More TODOs/FIXMEs.
+ ~ Updated GTA02 filter configuration.
+ ~ Updated GTA01 filter configuration.
+ ~ Updated mach-s3c2410/include/mach/ts.h for the new ts. configuration
+   structure.
+ ~ Updated all the filters to use the new configuration structure.
+ ~ Removed MAX_TS_FILTER_CHAIN constant that is no longer needed.
+
+No more evil casts left it seems.
+
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+ arch/arm/mach-s3c2410/include/mach/ts.h      |   18 ++++---
+ arch/arm/mach-s3c2410/mach-gta01.c           |   65 +++++++++++---------------
+ arch/arm/mach-s3c2442/mach-gta02.c           |   58 +++++++++++------------
+ drivers/input/touchscreen/pcap7200_ts.c      |    2 -
+ drivers/input/touchscreen/s3c2410_ts.c       |    5 --
+ drivers/input/touchscreen/ts_filter.c        |   25 ++++++----
+ drivers/input/touchscreen/ts_filter.h        |   30 ++++++++----
+ drivers/input/touchscreen/ts_filter_group.c  |   24 ++++++----
+ drivers/input/touchscreen/ts_filter_group.h  |   15 ++++++
+ drivers/input/touchscreen/ts_filter_linear.c |   11 +++-
+ drivers/input/touchscreen/ts_filter_linear.h |    9 ++--
+ drivers/input/touchscreen/ts_filter_mean.c   |   10 +++-
+ drivers/input/touchscreen/ts_filter_mean.h   |    3 +
+ drivers/input/touchscreen/ts_filter_median.c |   11 +++-
+ drivers/input/touchscreen/ts_filter_median.h |    9 +++-
+ 15 files changed, 167 insertions(+), 128 deletions(-)
+
+
+diff --git a/arch/arm/mach-s3c2410/include/mach/ts.h b/arch/arm/mach-s3c2410/include/mach/ts.h
+index 1b451ea..0600b30 100644
+--- a/arch/arm/mach-s3c2410/include/mach/ts.h
++++ b/arch/arm/mach-s3c2410/include/mach/ts.h
+@@ -19,17 +19,17 @@
+ #include <../drivers/input/touchscreen/ts_filter.h>
+ 
+ struct s3c2410_ts_mach_info {
+-        int delay;
+-        int presc;
+-        /* array of pointers to filter APIs we want to use, in order
+-         * ends on first NULL, all NULL is OK
+-         */
+-        struct ts_filter_api *filter_sequence[MAX_TS_FILTER_CHAIN];
+-        /* array of configuration ints, one for each filter above */
+-        void *filter_config[MAX_TS_FILTER_CHAIN];
++	/* Touchscreen delay. */
++	int delay;
++	/* Prescaler value. */
++	int presc;
++	/*
++	 * Null-terminated array of pointers to filter APIs and configurations
++	 * we want to use. In the same order they will be applied.
++	 */
++	struct ts_filter_configuration *filter_config;
+ };
+ 
+ void set_s3c2410ts_info(struct s3c2410_ts_mach_info *hard_s3c2410ts_info);
+ 
+ #endif /* __ASM_ARM_TS_H */
+-
+diff --git a/arch/arm/mach-s3c2410/mach-gta01.c b/arch/arm/mach-s3c2410/mach-gta01.c
+index df76347..d40cd83 100644
+--- a/arch/arm/mach-s3c2410/mach-gta01.c
++++ b/arch/arm/mach-s3c2410/mach-gta01.c
+@@ -702,59 +702,50 @@ static struct s3c2410_udc_mach_info gta01_udc_cfg = {
+ 	.vbus_draw	= gta01_udc_vbus_draw,
+ };
+ 
++/* Touchscreen configuration. */
+ 
+-/* touchscreen configuration */
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+-static struct ts_filter_linear_configuration gta01_ts_linear_config = {
+-	.constants = {1, 0, 0, 0, 1, 0, 1},	/* don't modify coords */
+-	.coord0 = 0,
+-	.coord1 = 1,
+-};
+-
+-static struct ts_filter_group_configuration gta01_ts_group_config = {
+-	.extent = 12,
++static struct ts_filter_group_configuration gta01_ts_group = {
++	.length = 12,
+ 	.close_enough = 10,
+-	.threshold = 6,		/* at least half of the points in a group */
++	.threshold = 6,		/* At least half of the points in a group. */
+ 	.attempts = 10,
+ };
+ 
+-static struct ts_filter_median_configuration gta01_ts_median_config = {
+-	.extent = 31,
+-	.decimation_below = 24,
++static struct ts_filter_median_configuration gta01_ts_median = {
++	.extent = 20,
++	.decimation_below = 3,
+ 	.decimation_threshold = 8 * 3,
+-	.decimation_above = 12,
++	.decimation_above = 4,
+ };
+ 
+-static struct ts_filter_mean_configuration gta01_ts_mean_config = {
+-	.bits_filter_length = 5,
+-	.averaging_threshold = 12
++static struct ts_filter_mean_configuration gta01_ts_mean = {
++	.length = 4,
+ };
+ 
+-static struct s3c2410_ts_mach_info gta01_ts_cfg = {
+-	.delay = 10000,
+-	.presc = 0xff, /* slow as we can go */
+-	.filter_sequence = {
+-		[0] = &ts_filter_group_api,
+-		[1] = &ts_filter_median_api,
+-		[2] = &ts_filter_mean_api,
+-		[3] = &ts_filter_linear_api,
+-	},
+-	.filter_config = {
+-		[0] = &gta01_ts_group_config,
+-		[1] = &gta01_ts_median_config,
+-		[2] = &gta01_ts_mean_config,
+-		[3] = &gta01_ts_linear_config,
+-	},
++static struct ts_filter_linear_configuration gta01_ts_linear = {
++	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
++	.coord0 = 0,
++	.coord1 = 1,
++};
++#endif
++
++struct ts_filter_configuration filter_configuration[] =
++{
++#ifdef CONFIG_TOUCHSCREEN_FILTER
++	{&ts_filter_group_api,		&gta01_ts_group.config},
++	{&ts_filter_median_api,		&gta01_ts_median.config},
++	{&ts_filter_mean_api,		&gta01_ts_mean.config},
++	{&ts_filter_linear_api,		&gta01_ts_linear.config},
++#endif
++	{NULL, NULL},
+ };
+-#else /* !CONFIG_TOUCHSCREEN_FILTER */
++
+ static struct s3c2410_ts_mach_info gta01_ts_cfg = {
+ 	.delay = 10000,
+ 	.presc = 0xff, /* slow as we can go */
+-	.filter_sequence = { NULL },
+-	.filter_config = { NULL },
++	.filter_config = filter_configuration,
+ };
+-#endif
+-
+ 
+ /* SPI */
+ 
+diff --git a/arch/arm/mach-s3c2442/mach-gta02.c b/arch/arm/mach-s3c2442/mach-gta02.c
+index 5745195..49cf09e 100644
+--- a/arch/arm/mach-s3c2442/mach-gta02.c
++++ b/arch/arm/mach-s3c2442/mach-gta02.c
+@@ -949,56 +949,52 @@ static struct s3c2410_udc_mach_info gta02_udc_cfg = {
+ };
+ 
+ 
+-/* touchscreen configuration */
+-#ifdef CONFIG_TOUCHSCREEN_FILTER
+-static struct ts_filter_linear_configuration gta02_ts_linear_config = {
+-	.constants = {1, 0, 0, 0, 1, 0, 1},	/* don't modify coords */
+-	.coord0 = 0,
+-	.coord1 = 1,
+-};
++/* Touchscreen configuration. */
+ 
+-static struct ts_filter_group_configuration gta02_ts_group_config = {
+-	.extent = 12,
++#ifdef CONFIG_TOUCHSCREEN_FILTER
++static struct ts_filter_group_configuration gta02_ts_group = {
++	.length = 12,
+ 	.close_enough = 10,
+-	.threshold = 6,		/* at least half of the points in a group */
++	.threshold = 6,		/* At least half of the points in a group. */
+ 	.attempts = 10,
+ };
+ 
+-static struct ts_filter_median_configuration gta02_ts_median_config = {
++static struct ts_filter_median_configuration gta02_ts_median = {
+ 	.extent = 20,
+ 	.decimation_below = 3,
+ 	.decimation_threshold = 8 * 3,
+ 	.decimation_above = 4,
+ };
+ 
+-static struct ts_filter_mean_configuration gta02_ts_mean_config = {
++static struct ts_filter_mean_configuration gta02_ts_mean = {
+ 	.length = 4,
+ };
+ 
+-static struct s3c2410_ts_mach_info gta02_ts_cfg = {
+-	.delay = 10000,
+-	.presc = 0xff, /* slow as we can go */
+-	.filter_sequence = {
+-		[0] = &ts_filter_group_api,
+-		[1] = &ts_filter_median_api,
+-		[2] = &ts_filter_mean_api,
+-		[3] = &ts_filter_linear_api,
+-	},
+-	.filter_config = {
+-		[0] = &gta02_ts_group_config,
+-		[1] = &gta02_ts_median_config,
+-		[2] = &gta02_ts_mean_config,
+-		[3] = &gta02_ts_linear_config,
+-	},
++static struct ts_filter_linear_configuration gta02_ts_linear = {
++	.constants = {1, 0, 0, 0, 1, 0, 1},	/* Don't modify coords. */
++	.coord0 = 0,
++	.coord1 = 1,
+ };
+-#else /* !CONFIG_TOUCHSCREEN_FILTER */
++#endif
++
++struct ts_filter_configuration filter_configuration[] =
++{
++#ifdef CONFIG_TOUCHSCREEN_FILTER
++	{&ts_filter_group_api,		&gta02_ts_group.config},
++	{&ts_filter_median_api,		&gta02_ts_median.config},
++	{&ts_filter_mean_api,		&gta02_ts_mean.config},
++	{&ts_filter_linear_api,		&gta02_ts_linear.config},
++#endif
++	{NULL, NULL},
++};
++
+ static struct s3c2410_ts_mach_info gta02_ts_cfg = {
+ 	.delay = 10000,
+ 	.presc = 0xff, /* slow as we can go */
+-	.filter_sequence = { NULL },
+-	.filter_config = { NULL },
++	.filter_config = filter_configuration,
+ };
+-#endif
++
++
+ 
+ static void gta02_bl_set_intensity(int intensity)
+ {
+diff --git a/drivers/input/touchscreen/pcap7200_ts.c b/drivers/input/touchscreen/pcap7200_ts.c
+index e8e9cc6..5a111f0 100644
+--- a/drivers/input/touchscreen/pcap7200_ts.c
++++ b/drivers/input/touchscreen/pcap7200_ts.c
+@@ -43,7 +43,7 @@
+ struct pcap7200_data{
+ 	struct i2c_client *client;
+ 	struct input_dev *dev;
+-	struct ts_filter *tsf[MAX_TS_FILTER_CHAIN];
++	struct ts_filter **tsf;
+ 	struct mutex lock;
+ 	int irq;
+ 	struct work_struct work;
+diff --git a/drivers/input/touchscreen/s3c2410_ts.c b/drivers/input/touchscreen/s3c2410_ts.c
+index d63d4ea..ccd4a44 100644
+--- a/drivers/input/touchscreen/s3c2410_ts.c
++++ b/drivers/input/touchscreen/s3c2410_ts.c
+@@ -98,7 +98,6 @@ static char *s3c2410ts_name = "s3c2410 TouchScreen";
+ 
+ #define TS_RELEASE_TIMEOUT (HZ >> 7 ? HZ >> 7 : 1) /* 8ms (5ms if HZ is 200) */
+ #define TS_EVENT_FIFO_SIZE (2 << 6) /* must be a power of 2 */
+-#define TS_COORDINATES_SIZE 2		/* just X and Y for us */
+ 
+ #define TS_STATE_STANDBY 0 /* initial state */
+ #define TS_STATE_PRESSED 1
+@@ -411,9 +410,7 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	/* create the filter chain set up for the 2 coordinates we produce */
+-	ts.tsf = ts_filter_chain_create(
+-			pdev, (struct ts_filter_api **)&info->filter_sequence,
+-			(void *)&info->filter_config, TS_COORDINATES_SIZE);
++	ts.tsf = ts_filter_chain_create(pdev, info->filter_config, 2);
+ 
+ 	if (!ts.tsf)
+ 		goto bail2;
+diff --git a/drivers/input/touchscreen/ts_filter.c b/drivers/input/touchscreen/ts_filter.c
+index 817fff2..5551fe3 100644
+--- a/drivers/input/touchscreen/ts_filter.c
++++ b/drivers/input/touchscreen/ts_filter.c
+@@ -40,11 +40,11 @@ static int sptrlen(void *arr)
+ 	return len;
+ }
+ 
+-static struct ts_filter **revchain; /* FIXME: rename this temporal hack. */
++/* FIXME: rename & remove this temporal hack. */
++static struct ts_filter **revchain;
+ 
+ struct ts_filter **ts_filter_chain_create(struct platform_device *pdev,
+-					  struct ts_filter_api **api,
+-					  void **config,
++					  struct ts_filter_configuration conf[],
+ 					  int count_coords)
+ {
+ 	struct ts_filter **arr;
+@@ -55,28 +55,31 @@ struct ts_filter **ts_filter_chain_create(struct platform_device *pdev,
+ 	BUG_ON((count_coords < 1));
+ 	BUG_ON(count_coords > MAX_TS_FILTER_COORDS);
+ 
+-	len = (sptrlen(api) + 1);
++	len = (sptrlen(conf) + 1);
+ 	/* memory for two null-terminated arrays of filters */
+ 	arr = kzalloc(2 * sizeof(struct ts_filter *) * len, GFP_KERNEL);
+ 	if (!arr)
+ 		goto create_err;
+ 	revchain = arr + len;
+ 
+-	while (*api) {
+-		/* TODO: Can get away with only sending pdev->dev? */
+-		/* FIXME: Avoid config (void**) */
+-		struct ts_filter *f = ((*api)->create)(pdev, *config++,
+-						       count_coords);
++	while (conf->api) {
++		/* TODO: Can we get away with only sending pdev->dev? */
++		struct ts_filter *f =
++			(conf->api->create)(pdev, conf->config, count_coords);
+ 		if (!f) {
+-			dev_info(&pdev->dev, "Filter %d failed init\n", count);
++			dev_info(&pdev->dev, "Filter %d creation failed\n",
++				 count);
+ 			goto create_err;
+ 		}
+-		f->api = *(api++);
++
++		f->api = conf->api;
+ 		arr[count++] = f;
+ 
+ 		/* Filters that can propagate values in the chain. */
+ 		if (f->api->haspoint && f->api->getpoint && f->api->process)
+ 			revchain[nrev++] = f;
++
++		conf++;
+ 	}
+ 
+ 	dev_info(&pdev->dev, "%d filter(s) initialized\n", count);
+diff --git a/drivers/input/touchscreen/ts_filter.h b/drivers/input/touchscreen/ts_filter.h
+index b5e8c7c..630ea51 100644
+--- a/drivers/input/touchscreen/ts_filter.h
++++ b/drivers/input/touchscreen/ts_filter.h
+@@ -9,16 +9,17 @@
+ 
+ #include <linux/platform_device.h>
+ 
+-#define MAX_TS_FILTER_CHAIN		8  /* Max. filters we can chain up. */
+ #define MAX_TS_FILTER_COORDS		3  /* X, Y and Z (pressure). */
+ 
+ struct ts_filter;
++struct ts_filter_configuration;
+ 
+ /* Operations that a filter can perform. */
+ 
+ struct ts_filter_api {
+ 	/* Create the filter - mandatory. */
+-	struct ts_filter * (*create)(struct platform_device *pdev, void *config,
++	struct ts_filter * (*create)(struct platform_device *pdev,
++				     struct ts_filter_configuration *config,
+ 				     int count_coords);
+ 	/* Destroy the filter - mandatory. */
+ 	void (*destroy)(struct ts_filter *filter);
+@@ -56,15 +57,21 @@ struct ts_filter_api {
+ };
+ 
+ /*
+- * This is the common part of all filters.
+- * We use this type as an otherwise opaque handle on to
+- * the actual filter.  Therefore you need one of these
+- * at the start of your actual filter struct.
++ * Generic filter configuration. Actual configurations have this structure
++ * as a member.
+  */
++struct ts_filter_configuration {
++	/* API to use */
++	struct ts_filter_api *api;
++	/* Generic filter configuration. Different for each filter. */
++	struct ts_filter_configuration *config;
++};
++
+ struct ts_filter {
+-	struct ts_filter_api *api;	/* operations for this filter */
+-	int count_coords;		/* how many coordinates to process */
+-	int coords[MAX_TS_FILTER_COORDS];	/* count_coords coordinates */
++	/* Operations for this filter. */
++	struct ts_filter_api *api;
++	/* Number of coordinates to process. */
++	int count_coords;
+ };
+ 
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+@@ -75,7 +82,8 @@ struct ts_filter {
+  */
+ extern struct ts_filter **ts_filter_chain_create(
+ 	struct platform_device *pdev,
+-	struct ts_filter_api **api, void **config, int count_coords);
++	struct ts_filter_configuration conf[],
++	int count_coords);
+ 
+ /* Helper to destroy a whole chain from the list of filter pointers. */
+ extern void ts_filter_chain_destroy(struct ts_filter **arr);
+@@ -94,7 +102,7 @@ extern void ts_filter_chain_clear(struct ts_filter **arr);
+ int ts_filter_chain_feed(struct ts_filter **arr, int *coords);
+ 
+ #else /* !CONFIG_TOUCHSCREEN_FILTER */
+-#define ts_filter_chain_create(pdev, api, config, arr, count_coords) (0)
++#define ts_filter_chain_create(pdev, config, count_coords) (0) /*TODO:fail!*/
+ #define ts_filter_chain_destroy(pdev, arr) do { } while (0)
+ #define ts_filter_chain_clear(arr) do { } while (0)
+ #define ts_filter_chain_feed(arr, coords) (1)
+diff --git a/drivers/input/touchscreen/ts_filter_group.c b/drivers/input/touchscreen/ts_filter_group.c
+index 9b02c70..ac3229f 100644
+--- a/drivers/input/touchscreen/ts_filter_group.c
++++ b/drivers/input/touchscreen/ts_filter_group.c
+@@ -83,8 +83,10 @@ static void ts_filter_group_clear(struct ts_filter *tsf)
+ 	ts_filter_group_clear_internal(tsfg, tsfg->config->attempts);
+ }
+ 
+-static struct ts_filter *ts_filter_group_create(struct platform_device *pdev,
+-						void *conf, int count_coords)
++static struct ts_filter *ts_filter_group_create(
++	struct platform_device *pdev,
++	struct ts_filter_configuration *conf,
++	int count_coords)
+ {
+ 	struct ts_filter_group *tsfg;
+ 	int i;
+@@ -93,28 +95,30 @@ static struct ts_filter *ts_filter_group_create(struct platform_device *pdev,
+ 	if (!tsfg)
+ 		return NULL;
+ 
+-	tsfg->config = (struct ts_filter_group_configuration *)conf;
++	tsfg->config = container_of(conf,
++				    struct ts_filter_group_configuration,
++				    config);
+ 	tsfg->tsf.count_coords = count_coords;
+ 
+ 	BUG_ON(tsfg->config->attempts <= 0);
+ 
+ 	tsfg->samples[0] = kmalloc((2 + count_coords) * sizeof(int) *
+-				   tsfg->config->extent, GFP_KERNEL);
++				   tsfg->config->length, GFP_KERNEL);
+ 	if (!tsfg->samples[0]) {
+ 		kfree(tsfg);
+ 		return NULL;
+ 	}
+ 	for (i = 1; i < count_coords; ++i)
+-		tsfg->samples[i] = tsfg->samples[0] + i * tsfg->config->extent;
++		tsfg->samples[i] = tsfg->samples[0] + i * tsfg->config->length;
+ 	tsfg->sorted_samples = tsfg->samples[0] + count_coords *
+-			       tsfg->config->extent;
++			       tsfg->config->length;
+ 	tsfg->group_size = tsfg->samples[0] + (1 + count_coords) *
+-			       tsfg->config->extent;
++			       tsfg->config->length;
+ 
+ 	ts_filter_group_clear_internal(tsfg, tsfg->config->attempts);
+ 
+ 	dev_info(&pdev->dev, "Created Group filter len:%d coords:%d close:%d "
+-		 "thresh:%d\n", tsfg->config->extent, count_coords,
++		 "thresh:%d\n", tsfg->config->length, count_coords,
+ 		 tsfg->config->close_enough, tsfg->config->threshold);
+ 
+ 	return &tsfg->tsf;
+@@ -148,13 +152,13 @@ static int ts_filter_group_process(struct ts_filter *tsf, int *coords)
+ 	int n;
+ 	int i;
+ 
+-	BUG_ON(tsfg->N >= tsfg->config->extent);
++	BUG_ON(tsfg->N >= tsfg->config->length);
+ 	BUG_ON(tsfg->ready);
+ 
+ 	for (n = 0; n < tsf->count_coords; n++)
+ 		tsfg->samples[n][tsfg->N] = coords[n];
+ 
+-	if (++tsfg->N < tsfg->config->extent)
++	if (++tsfg->N < tsfg->config->length)
+ 		return 0;	/* We need more samples. */
+ 
+ 	for (n = 0; n < tsfg->tsf.count_coords; n++) {
+diff --git a/drivers/input/touchscreen/ts_filter_group.h b/drivers/input/touchscreen/ts_filter_group.h
+index c13b0c4..4fc2af7 100644
+--- a/drivers/input/touchscreen/ts_filter_group.h
++++ b/drivers/input/touchscreen/ts_filter_group.h
+@@ -12,10 +12,23 @@
+  */
+ 
+ struct ts_filter_group_configuration {
+-	int extent;
++	/* Size of the filter. */
++	int length;
++	/*
++	 * If two points are separated by this distance or less they
++	 * are considered to be members of the same group.
++	 */
+ 	int close_enough;
++	/* Minimum allowed size for the biggest group in the sample set. */
+ 	int threshold;
++	/*
++	 * Number of times we try to get a group of points with at least
++	 * threshold points.
++	 */
+ 	int attempts;
++
++	/* Generic filter configuration. */
++	struct ts_filter_configuration config;
+ };
+ 
+ extern struct ts_filter_api ts_filter_group_api;
+diff --git a/drivers/input/touchscreen/ts_filter_linear.c b/drivers/input/touchscreen/ts_filter_linear.c
+index 72a362f..bb63814 100644
+--- a/drivers/input/touchscreen/ts_filter_linear.c
++++ b/drivers/input/touchscreen/ts_filter_linear.c
+@@ -125,8 +125,10 @@ static ssize_t const_store(struct const_obj *obj, struct const_attribute *attr,
+ 
+ /* Filter functions. */
+ 
+-static struct ts_filter *ts_filter_linear_create(struct platform_device *pdev,
+-						 void *conf, int count_coords)
++static struct ts_filter *ts_filter_linear_create(
++	struct platform_device *pdev,
++	struct ts_filter_configuration *conf,
++	int count_coords)
+ {
+ 	struct ts_filter_linear *tsfl;
+ 	int i;
+@@ -136,7 +138,10 @@ static struct ts_filter *ts_filter_linear_create(struct platform_device *pdev,
+ 	if (!tsfl)
+ 		return NULL;
+ 
+-	tsfl->config = (struct ts_filter_linear_configuration *)conf;
++	tsfl->config = container_of(conf,
++				    struct ts_filter_linear_configuration,
++				    config);
++
+ 	tsfl->tsf.count_coords = count_coords;
+ 
+ 	for (i = 0; i < TS_FILTER_LINEAR_NCONSTANTS; ++i) {
+diff --git a/drivers/input/touchscreen/ts_filter_linear.h b/drivers/input/touchscreen/ts_filter_linear.h
+index 9da5b82..5cd9a81 100644
+--- a/drivers/input/touchscreen/ts_filter_linear.h
++++ b/drivers/input/touchscreen/ts_filter_linear.h
+@@ -14,13 +14,16 @@
+ 
+ #define TS_FILTER_LINEAR_NCONSTANTS 7
+ 
+-/* filter configuration */
+-
+-/* FIXME: comment every field. */
+ struct ts_filter_linear_configuration {
++	/* Calibration constants. */
+ 	int constants[TS_FILTER_LINEAR_NCONSTANTS];
++	/* First coordinate. */
+ 	int coord0;
++	/* Second coordinate. */
+ 	int coord1;
++
++	/* Generic filter configuration. */
++	struct ts_filter_configuration config;
+ };
+ 
+ extern struct ts_filter_api ts_filter_linear_api;
+diff --git a/drivers/input/touchscreen/ts_filter_mean.c b/drivers/input/touchscreen/ts_filter_mean.c
+index c61a5c1..291226e 100644
+--- a/drivers/input/touchscreen/ts_filter_mean.c
++++ b/drivers/input/touchscreen/ts_filter_mean.c
+@@ -50,8 +50,10 @@ struct ts_filter_mean {
+ 
+ static void ts_filter_mean_clear(struct ts_filter *tsf);
+ 
+-static struct ts_filter *ts_filter_mean_create(struct platform_device *pdev,
+-					       void *config, int count_coords)
++static struct ts_filter *ts_filter_mean_create(
++	struct platform_device *pdev,
++	struct ts_filter_configuration *conf,
++	int count_coords)
+ {
+ 	struct ts_filter_mean *priv;
+ 	int *v;
+@@ -62,7 +64,9 @@ static struct ts_filter *ts_filter_mean_create(struct platform_device *pdev,
+ 		return NULL;
+ 
+ 	priv->tsf.count_coords = count_coords;
+-	priv->config = (struct ts_filter_mean_configuration *)config;
++	priv->config = container_of(conf,
++				    struct ts_filter_mean_configuration,
++				    config);
+ 
+ 	BUG_ON(priv->config->length <= 0);
+ 
+diff --git a/drivers/input/touchscreen/ts_filter_mean.h b/drivers/input/touchscreen/ts_filter_mean.h
+index 5677ed8..7b3935f 100644
+--- a/drivers/input/touchscreen/ts_filter_mean.h
++++ b/drivers/input/touchscreen/ts_filter_mean.h
+@@ -17,6 +17,9 @@
+ struct ts_filter_mean_configuration {
+ 	/* Number of points for the mean. */
+ 	int length;
++
++	/* Generic filter configuration. */
++	struct ts_filter_configuration config;
+ };
+ 
+ /* API functions for the mean filter */
+diff --git a/drivers/input/touchscreen/ts_filter_median.c b/drivers/input/touchscreen/ts_filter_median.c
+index 6187abb..547ca8d 100644
+--- a/drivers/input/touchscreen/ts_filter_median.c
++++ b/drivers/input/touchscreen/ts_filter_median.c
+@@ -103,8 +103,10 @@ static void ts_filter_median_clear(struct ts_filter *tsf)
+ 	memset(&tsfm->last_issued[0], 1, tsf->count_coords * sizeof(int));
+ }
+ 
+-static struct ts_filter *ts_filter_median_create(struct platform_device *pdev,
+-						 void *conf, int count_coords)
++static struct ts_filter *ts_filter_median_create(
++	struct platform_device *pdev,
++	struct ts_filter_configuration *conf,
++	int count_coords)
+ {
+ 	int *p;
+ 	int n;
+@@ -114,7 +116,10 @@ static struct ts_filter *ts_filter_median_create(struct platform_device *pdev,
+ 	if (!tsfm)
+ 		return NULL;
+ 
+-	tsfm->config = (struct ts_filter_median_configuration *)conf;
++	tsfm->config = container_of(conf,
++				    struct ts_filter_median_configuration,
++				    config);
++
+ 	tsfm->tsf.count_coords = count_coords;
+ 
+ 	tsfm->config->midpoint = (tsfm->config->extent >> 1) + 1;
+diff --git a/drivers/input/touchscreen/ts_filter_median.h b/drivers/input/touchscreen/ts_filter_median.h
+index 589bc6d..17a1ca6 100644
+--- a/drivers/input/touchscreen/ts_filter_median.h
++++ b/drivers/input/touchscreen/ts_filter_median.h
+@@ -11,13 +11,20 @@
+  * (c) 2008 Andy Green <andy@openmoko.com>
+  */
+ 
+-/* TODO: comment every field */
+ struct ts_filter_median_configuration {
++	/* Size of the filter. */
+ 	int extent;
++	/* Precomputed midpoint. */
+ 	int midpoint;
++	/* A reference value for us to check if we are going fast or slow. */
+ 	int decimation_threshold;
++	/* How many points to replace if we're going fast. */
+ 	int decimation_above;
++	/* How many points to replace if we're going slow. */
+ 	int decimation_below;
++
++	/* Generic configuration. */
++	struct ts_filter_configuration config;
+ };
+ 
+ extern struct ts_filter_api ts_filter_median_api;

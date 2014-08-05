@@ -1,0 +1,29 @@
+ifeq ($(CONFIG_TARGET_s3c24xx_mini6410GEC6410),y)
+	SOUNDCORE_FILES = \
+		$(LINUX_DIR)/sound/soundcore.ko \
+		$(LINUX_DIR)/sound/sound_firmware.ko \
+		$(LINUX_DIR)/sound/core/snd.ko \
+		$(LINUX_DIR)/sound/core/snd-page-alloc.ko \
+		$(LINUX_DIR)/sound/core/snd-hwdep.ko \
+		$(LINUX_DIR)/sound/core/seq/snd-seq-device.ko \
+		$(LINUX_DIR)/sound/core/snd-timer.ko \
+		$(LINUX_DIR)/sound/core/snd-pcm.ko \
+		$(LINUX_DIR)/sound/core/snd-rawmidi.ko \
+		$(LINUX_DIR)/sound/soc/snd-soc-core.ko \
+		$(LINUX_DIR)/sound/soc/s3c24xx/snd-soc-s3c24xx-i2s.ko \
+		$(LINUX_DIR)/sound/soc/s3c24xx/snd-soc-s3c24xx.ko \
+	SOUNDCORE_LOAD = \
+		soundcore \
+		sound_firmware \
+		snd \
+		snd-page-alloc \
+		snd-hwdep \
+		snd-seq-device \
+		snd-timer \
+		snd-pcm \
+		snd-rawmidi \
+		snd-soc-core \
+		snd-soc-s3c24xx-i2s \
+		snd-soc-s3c24xx \
+
+endif

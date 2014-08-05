@@ -1,0 +1,77 @@
+diff -uNr /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/include/mach/map.h ./arch/arm/mach-s5pv210/include/mach/map.h
+--- /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/include/mach/map.h	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/mach-s5pv210/include/mach/map.h	2014-08-04 19:32:24.000000000 +0800
+@@ -74,7 +74,7 @@
+ #define S5PV210_PA_VIC3		(0xF2300000)
+ #define S5P_PA_VIC3		S5PV210_PA_VIC3
+ 
+-#define S5PV210_PA_SDRAM	(0x20000000)
++#define S5PV210_PA_SDRAM	(0x30000000)
+ #define S5P_PA_SDRAM		S5PV210_PA_SDRAM
+ 
+ /* I2S */
+diff -uNr /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/include/mach/memory.h ./arch/arm/mach-s5pv210/include/mach/memory.h
+--- /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/include/mach/memory.h	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/mach-s5pv210/include/mach/memory.h	2014-08-04 19:32:24.000000000 +0800
+@@ -13,11 +13,11 @@
+ #ifndef __ASM_ARCH_MEMORY_H
+ #define __ASM_ARCH_MEMORY_H
+ 
+-#define PHYS_OFFSET		UL(0x20000000)
++#define PHYS_OFFSET		UL(0x30000000)
+ #define CONSISTENT_DMA_SIZE	(SZ_8M + SZ_4M + SZ_2M)
+ 
+ /* Maximum of 256MiB in one bank */
+-#define MAX_PHYSMEM_BITS	32
+-#define SECTION_SIZE_BITS	28
++#define MAX_PHYSMEM_BITS	31
++#define SECTION_SIZE_BITS	29
+ 
+ #endif /* __ASM_ARCH_MEMORY_H */
+diff -uNr /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/mach-smdkv210.c ./arch/arm/mach-s5pv210/mach-smdkv210.c
+--- /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/mach-smdkv210.c	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/mach-s5pv210/mach-smdkv210.c	2014-08-04 19:37:34.000000000 +0800
+@@ -73,12 +73,35 @@
+ 	},
+ };
+ 
++////////////////////////////////
++#define S5PV210_PA_NAND                 (0xB0E00000)
++#define S5PV210_SZ_NAND                 SZ_1M
++
++static struct resource s3c_nand_resource[] = {
++	[0] = {
++		.start	= S5PV210_PA_NAND,
++		.end	= S5PV210_PA_NAND + S5PV210_SZ_NAND - 1,
++		.flags	= IORESOURCE_MEM,
++	}
++};
++
++struct platform_device s3c_device_nand = {
++	.name		= "webee210-nand",
++	.id			= -1,
++	.num_resources	= ARRAY_SIZE(s3c_nand_resource),
++	.resource	= s3c_nand_resource,
++};
++//////////////////////////////////
++
++
++
+ static struct platform_device *smdkv210_devices[] __initdata = {
+ 	&s5pv210_device_iis0,
+ 	&s5pv210_device_ac97,
+ 	&s3c_device_adc,
+ 	&s3c_device_ts,
+ 	&s3c_device_wdt,
++	&s3c_device_nand,
+ };
+ 
+ static struct s3c2410_ts_mach_info s3c_ts_platform __initdata = {
+diff -uNr /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/Makefile.boot ./arch/arm/mach-s5pv210/Makefile.boot
+--- /home/webee-wrt/openWRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/Makefile.boot	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/mach-s5pv210/Makefile.boot	2014-08-05 11:11:40.405757267 +0800
+@@ -1,2 +1,2 @@
+-   zreladdr-y	:= 0x20008000
+-params_phys-y	:= 0x20000100
++   zreladdr-y	:= 0x30008000
++params_phys-y	:= 0x30000100

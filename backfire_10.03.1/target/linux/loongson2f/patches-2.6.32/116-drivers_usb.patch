@@ -1,0 +1,20 @@
+diff -Nur linux-2.6.32.33/drivers/usb/host/ohci-hcd.c linux-2.6.32.33-loongson2f/drivers/usb/host/ohci-hcd.c
+--- linux-2.6.32.33/drivers/usb/host/ohci-hcd.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/usb/host/ohci-hcd.c	2011-03-26 03:39:49.000000000 +0800
+@@ -839,9 +839,13 @@
+ 	}
+ 
+ 	if (ints & OHCI_INTR_WDH) {
+-		spin_lock (&ohci->lock);
+-		dl_done_list (ohci);
+-		spin_unlock (&ohci->lock);
++		if (ohci->hcca->done_head == 0) {
++			ints &= ~OHCI_INTR_WDH;
++		} else {
++			spin_lock (&ohci->lock);
++			dl_done_list (ohci);
++			spin_unlock (&ohci->lock);
++		}
+ 	}
+ 
+ 	if (quirk_zfmicro(ohci) && (ints & OHCI_INTR_SF)) {

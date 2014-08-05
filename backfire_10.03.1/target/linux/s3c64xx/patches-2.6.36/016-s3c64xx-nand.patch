@@ -1,0 +1,85 @@
+diff -Nru linux-2.6.36.2/drivers/mtd/nand/Kconfig linux-2.6.36.2-v1.05/drivers/mtd/nand/Kconfig
+--- linux-2.6.36.2/drivers/mtd/nand/Kconfig	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/drivers/mtd/nand/Kconfig	2011-01-19 07:46:58.000000000 +0000
+@@ -217,6 +217,35 @@
+ 	  incorrect ECC generation, and if using these, the default of
+ 	  software ECC is preferable.
+ 
++config MTD_NAND_S3C
++	tristate "NAND Flash support for S3C SoC"
++	depends on (ARCH_S3C64XX || ARCH_S5P64XX || ARCH_S5PC1XX) && MTD_NAND
++	help
++	  This enables the NAND flash controller on the S3C.
++
++	  No board specfic support is done by this driver, each board
++	  must advertise a platform_device for the driver to attach.
++
++config MTD_NAND_S3C_DEBUG
++	bool "S3C NAND driver debug"
++	depends on MTD_NAND_S3C
++	help
++	  Enable debugging of the S3C NAND driver
++
++config MTD_NAND_S3C_HWECC
++	bool "S3C NAND Hardware ECC"
++	depends on MTD_NAND_S3C
++	help
++	  Enable the use of the S3C's internal ECC generator when
++	  using NAND. Early versions of the chip have had problems with
++	  incorrect ECC generation, and if using these, the default of
++	  software ECC is preferable.
++
++	  If you lay down a device with the hardware ECC, then you will
++	  currently not be able to switch to software, as there is no
++	  implementation for ECC method used by the S3C
++
++
+ config MTD_NAND_NDFC
+ 	tristate "NDFC NanD Flash Controller"
+ 	depends on 4xx
+diff -Nru linux-2.6.36.2/drivers/mtd/nand/Makefile linux-2.6.36.2-v1.05/drivers/mtd/nand/Makefile
+--- linux-2.6.36.2/drivers/mtd/nand/Makefile	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/drivers/mtd/nand/Makefile	2011-01-19 07:46:58.000000000 +0000
+@@ -17,6 +17,7 @@
+ obj-$(CONFIG_MTD_NAND_BF5XX)		+= bf5xx_nand.o
+ obj-$(CONFIG_MTD_NAND_PPCHAMELEONEVB)	+= ppchameleonevb.o
+ obj-$(CONFIG_MTD_NAND_S3C2410)		+= s3c2410.o
++obj-$(CONFIG_MTD_NAND_S3C)		+= s3c_nand.o
+ obj-$(CONFIG_MTD_NAND_DAVINCI)		+= davinci_nand.o
+ obj-$(CONFIG_MTD_NAND_DISKONCHIP)	+= diskonchip.o
+ obj-$(CONFIG_MTD_NAND_H1900)		+= h1910.o
+diff -Nru linux-2.6.36.2/drivers/mtd/nand/nand_base.c linux-2.6.36.2-v1.05/drivers/mtd/nand/nand_base.c
+--- linux-2.6.36.2/drivers/mtd/nand/nand_base.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/drivers/mtd/nand/nand_base.c	2011-04-29 04:25:11.000000000 +0100
+@@ -2940,6 +2940,7 @@
+ 	else
+ 		chip->badblockpos = NAND_SMALL_BADBLOCK_POS;
+ 
++	chip->badblockbits = 8;
+ 	/* Get chip options, preserve non chip based options */
+ 	chip->options &= ~NAND_CHIPOPTIONS_MSK;
+ 	chip->options |= type->options & NAND_CHIPOPTIONS_MSK;
+diff -Nru linux-2.6.36.2/drivers/mtd/nand/nand_ids.c linux-2.6.36.2-v1.05/drivers/mtd/nand/nand_ids.c
+--- linux-2.6.36.2/drivers/mtd/nand/nand_ids.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/drivers/mtd/nand/nand_ids.c	2011-05-12 08:39:03.000000000 +0100
+@@ -108,6 +108,8 @@
+ 	/* 16 Gigabit */
+ 	{"NAND 2GiB 1,8V 8-bit",	0xA5, 0, 2048, 0, LP_OPTIONS},
+ 	{"NAND 2GiB 3,3V 8-bit",	0xD5, 0, 2048, 0, LP_OPTIONS},
++	//{"NAND 2GiB 3,3V 8-bit",	0xD5, 4096, 2048, 512*1024, LP_OPTIONS},
++
+ 	{"NAND 2GiB 1,8V 16-bit",	0xB5, 0, 2048, 0, LP_OPTIONS16},
+ 	{"NAND 2GiB 3,3V 16-bit",	0xC5, 0, 2048, 0, LP_OPTIONS16},
+ 
+diff -Nru linux-2.6.36.2/include/mtd/mtd-abi.h linux-2.6.36.2-v1.05/include/mtd/mtd-abi.h
+--- linux-2.6.36.2/include/mtd/mtd-abi.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/include/mtd/mtd-abi.h	2011-05-12 08:39:03.000000000 +0100
+@@ -151,7 +151,7 @@
+  */
+ struct nand_ecclayout {
+ 	__u32 eccbytes;
+-	__u32 eccpos[64];
++	__u32 eccpos[128];
+ 	__u32 oobavail;
+ 	struct nand_oobfree oobfree[MTD_MAX_OOBFREE_ENTRIES];
+ };

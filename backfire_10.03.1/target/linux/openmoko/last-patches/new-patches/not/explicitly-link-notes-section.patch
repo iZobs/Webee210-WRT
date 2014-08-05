@@ -1,0 +1,17 @@
+Since 2.6.23 kbuild produces a 3GB arch/arm/boot/Image because it includes a
+.note.gnu.build-id section at address 0 which is followed by 3GB of 0x00.
+The --build-id option is set in the toplevel Makefile.
+This patch explicitly puts the notes section after the TEXT section.
+Index: linux-2.6.23-rc8/arch/arm/kernel/vmlinux.lds.S
+===================================================================
+--- linux-2.6.23-rc8.orig/arch/arm/kernel/vmlinux.lds.S
++++ linux-2.6.23-rc8/arch/arm/kernel/vmlinux.lds.S
+@@ -105,6 +105,8 @@
+ 		*(.got)			/* Global offset table		*/
+ 	}
+ 
++	NOTES
++
+ 	RODATA
+ 
+ 	_etext = .;			/* End of text and rodata section */

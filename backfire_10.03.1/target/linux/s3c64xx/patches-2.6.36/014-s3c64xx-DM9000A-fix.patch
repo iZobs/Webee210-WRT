@@ -1,0 +1,43 @@
+diff -Nru linux-2.6.36/include/linux/dm9000.h linux-2.6.36-Firendyarm/include/linux/dm9000.h
+--- linux-2.6.36/include/linux/dm9000.h	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/include/linux/dm9000.h	2010-10-28 12:37:02.000000000 +0100
+@@ -28,6 +28,7 @@
+ struct dm9000_plat_data {
+ 	unsigned int	flags;
+ 	unsigned char	dev_addr[6];
++	unsigned char	param_addr[6];
+ 
+ 	/* allow replacement IO routines */
+
+diff -Nru linux-2.6.36/drivers/net/dm9000.c linux-2.6.36-Firendyarm/drivers/net/dm9000.c
+--- linux-2.6.36/drivers/net/dm9000.c	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/net/dm9000.c	2010-10-28 12:37:02.000000000 +0100
+@@ -1579,19 +1579,24 @@
+ 	for (i = 0; i < 6; i += 2)
+ 		dm9000_read_eeprom(db, i / 2, ndev->dev_addr+i);
+ 
++	/* try MAC address passed by kernel command line */
+ 	if (!is_valid_ether_addr(ndev->dev_addr) && pdata != NULL) {
+-		mac_src = "platform data";
+-		memcpy(ndev->dev_addr, pdata->dev_addr, 6);
++		mac_src = "param data";
++		memcpy(ndev->dev_addr, pdata->param_addr, 6);
+ 	}
+ 
+ 	if (!is_valid_ether_addr(ndev->dev_addr)) {
+ 		/* try reading from mac */
+-		
+ 		mac_src = "chip";
+ 		for (i = 0; i < 6; i++)
+ 			ndev->dev_addr[i] = ior(db, i+DM9000_PAR);
+ 	}
+ 
++	if (!is_valid_ether_addr(ndev->dev_addr) && pdata != NULL) {
++		mac_src = "platform data";
++		memcpy(ndev->dev_addr, pdata->dev_addr, 6);
++	}
++
+ 	if (!is_valid_ether_addr(ndev->dev_addr))
+ 		dev_warn(db->dev, "%s: Invalid ethernet MAC address. Please "
+ 			 "set using ifconfig\n", ndev->name);
+

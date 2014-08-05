@@ -1,0 +1,13 @@
+# 添加通过内核命令设置TFT LCD类型,通过lcd_type=LCD类型设置.
+# (lcd_type:A70, N43, W35, VGA)默认为A70, 未知LCD采用N43
+# linux-2.6.32.27/arch/arm/plat-s3c24xx/lcd-config.c
+--- linux-2.6.32.27/arch/arm/plat-s3c24xx/Makefile.orig	2012-03-17 18:14:52.000000000 +0800
++++ linux-2.6.32.27/arch/arm/plat-s3c24xx/Makefile	2012-08-28 10:59:31.058056226 +0800
+@@ -15,6 +15,7 @@
+ obj-y				+= cpu.o
+ obj-y				+= irq.o
+ obj-y				+= devs.o
++obj-y				+= lcd-config.o
+ obj-y				+= gpio.o
+ obj-y				+= gpiolib.o
+ obj-y				+= clock.o

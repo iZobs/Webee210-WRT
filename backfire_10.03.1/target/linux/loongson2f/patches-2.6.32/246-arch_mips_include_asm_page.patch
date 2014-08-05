@@ -1,0 +1,60 @@
+--- linux-2.6.32.33/arch/mips/include/asm/page.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/page.h	2011-03-26 03:39:49.000000000 +0800
+@@ -200,8 +200,10 @@
+ #define VM_DATA_DEFAULT_FLAGS	(VM_READ | VM_WRITE | VM_EXEC | \
+ 				 VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC)
+ 
+-#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE)
+-#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET)
++#define UNCAC_ADDR(addr)	((addr) - PAGE_OFFSET + UNCAC_BASE + 	\
++								PHYS_OFFSET)
++#define CAC_ADDR(addr)		((addr) - UNCAC_BASE + PAGE_OFFSET -	\
++								PHYS_OFFSET)
+ 
+ #include <asm-generic/memory_model.h>
+ #include <asm-generic/getorder.h>
+--- linux-2.6.32.33/arch/mips/include/asm/pgtable.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/pgtable.h	2011-03-26 03:39:49.000000000 +0800
+@@ -390,6 +390,19 @@
+ #include <asm-generic/pgtable.h>
+ 
+ /*
++ * uncached accelerated TLB map for video memory access
++ */
++#ifdef CONFIG_CPU_SUPPORTS_UNCACHED_ACCELERATED
++#define __HAVE_PHYS_MEM_ACCESS_PROT
++
++struct file;
++pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
++		unsigned long size, pgprot_t vma_prot);
++int phys_mem_access_prot_allowed(struct file *file, unsigned long pfn,
++		unsigned long size, pgprot_t *vma_prot);
++#endif
++
++/*
+  * We provide our own get_unmapped area to cope with the virtual aliasing
+  * constraints placed on us by the cache architecture.
+  */
+--- linux-2.6.32.33/arch/mips/include/asm/pgtable-64.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/pgtable-64.h	2011-03-26 03:39:49.000000000 +0800
+@@ -107,10 +107,17 @@
+ #endif
+ #define FIRST_USER_ADDRESS	0UL
+ 
+-#define VMALLOC_START		MAP_BASE
++/*
++ * TLB refill handlers also map the vmalloc area into xuseg.  Avoid
++ * the first couple of pages so NULL pointer dereferences will still
++ * reliably trap.
++ */
++#define VMALLOC_START		(MAP_BASE + (2 * PAGE_SIZE))
+ #define VMALLOC_END	\
+-	(VMALLOC_START + \
+-	 PTRS_PER_PGD * PTRS_PER_PMD * PTRS_PER_PTE * PAGE_SIZE - (1UL << 32))
++	(MAP_BASE + \
++	 min(PTRS_PER_PGD * PTRS_PER_PMD * PTRS_PER_PTE * PAGE_SIZE, \
++	     (1UL << cpu_vmbits)) - (1UL << 32))
++
+ #if defined(CONFIG_MODULES) && defined(KBUILD_64BIT_SYM32) && \
+ 	VMALLOC_START != CKSSEG
+ /* Load modules into 32bit-compatible segment. */

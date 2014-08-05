@@ -1,0 +1,190 @@
+--- a/include/mtd/mtd-abi.h
++++ b/include/mtd/mtd-abi.h
+@@ -37,6 +37,7 @@ struct mtd_oob_buf64 {
+ #define MTD_NANDFLASH		4
+ #define MTD_DATAFLASH		6
+ #define MTD_UBIVOLUME		7
++#define MTD_MLCNANDFLASH        8
+ 
+ #define MTD_WRITEABLE		0x400	/* Device is writeable */
+ #define MTD_BIT_WRITEABLE	0x800	/* Single bits can be flipped */
+@@ -134,7 +135,7 @@ struct nand_oobfree {
+  */
+ struct nand_ecclayout {
+ 	__u32 eccbytes;
+-	__u32 eccpos[64];
++	__u32 eccpos[256];
+ 	__u32 oobavail;
+ 	struct nand_oobfree oobfree[MTD_MAX_OOBFREE_ENTRIES];
+ };
+--- a/include/linux/mtd/mtd.h
++++ b/include/linux/mtd/mtd.h
+@@ -13,7 +13,6 @@
+ #include <linux/notifier.h>
+ #include <linux/device.h>
+ 
+-#include <linux/mtd/compatmac.h>
+ #include <mtd/mtd-abi.h>
+ 
+ #include <asm/div64.h>
+--- a/drivers/mtd/chips/cfi_cmdset_0001.c
++++ b/drivers/mtd/chips/cfi_cmdset_0001.c
+@@ -34,7 +34,6 @@
+ #include <linux/mtd/xip.h>
+ #include <linux/mtd/map.h>
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/compatmac.h>
+ #include <linux/mtd/cfi.h>
+ 
+ /* #define CMDSET0001_DISABLE_ERASE_SUSPEND_ON_WRITE */
+--- a/drivers/mtd/chips/cfi_cmdset_0002.c
++++ b/drivers/mtd/chips/cfi_cmdset_0002.c
+@@ -33,7 +33,6 @@
+ #include <linux/delay.h>
+ #include <linux/interrupt.h>
+ #include <linux/reboot.h>
+-#include <linux/mtd/compatmac.h>
+ #include <linux/mtd/map.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/cfi.h>
+--- a/drivers/mtd/chips/cfi_cmdset_0020.c
++++ b/drivers/mtd/chips/cfi_cmdset_0020.c
+@@ -33,7 +33,6 @@
+ #include <linux/mtd/map.h>
+ #include <linux/mtd/cfi.h>
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ 
+ static int cfi_staa_read(struct mtd_info *, loff_t, size_t, size_t *, u_char *);
+--- a/drivers/mtd/chips/cfi_util.c
++++ b/drivers/mtd/chips/cfi_util.c
+@@ -22,7 +22,6 @@
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/map.h>
+ #include <linux/mtd/cfi.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ int __xipram cfi_qry_present(struct map_info *map, __u32 base,
+ 			     struct cfi_private *cfi)
+--- a/drivers/mtd/chips/chipreg.c
++++ b/drivers/mtd/chips/chipreg.c
+@@ -10,7 +10,6 @@
+ #include <linux/slab.h>
+ #include <linux/mtd/map.h>
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ static DEFINE_SPINLOCK(chip_drvs_lock);
+ static LIST_HEAD(chip_drvs_list);
+--- a/drivers/mtd/chips/map_absent.c
++++ b/drivers/mtd/chips/map_absent.c
+@@ -25,7 +25,6 @@
+ #include <linux/init.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/map.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ static int map_absent_read (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
+ static int map_absent_write (struct mtd_info *, loff_t, size_t, size_t *, const u_char *);
+--- a/drivers/mtd/chips/map_ram.c
++++ b/drivers/mtd/chips/map_ram.c
+@@ -13,7 +13,6 @@
+ #include <linux/init.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/map.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ 
+ static int mapram_read (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
+--- a/drivers/mtd/chips/map_rom.c
++++ b/drivers/mtd/chips/map_rom.c
+@@ -13,7 +13,6 @@
+ #include <linux/init.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/map.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ static int maprom_read (struct mtd_info *, loff_t, size_t, size_t *, u_char *);
+ static int maprom_write (struct mtd_info *, loff_t, size_t, size_t *, const u_char *);
+--- a/drivers/mtd/devices/docecc.c
++++ b/drivers/mtd/devices/docecc.c
+@@ -31,7 +31,6 @@
+ #include <linux/init.h>
+ #include <linux/types.h>
+ 
+-#include <linux/mtd/compatmac.h> /* for min() in older kernels */
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/doc2000.h>
+ 
+--- a/drivers/mtd/devices/docprobe.c
++++ b/drivers/mtd/devices/docprobe.c
+@@ -49,7 +49,6 @@
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/nand.h>
+ #include <linux/mtd/doc2000.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ /* Where to look for the devices? */
+ #ifndef CONFIG_MTD_DOCPROBE_ADDRESS
+--- a/drivers/mtd/devices/mtdram.c
++++ b/drivers/mtd/devices/mtdram.c
+@@ -14,7 +14,6 @@
+ #include <linux/ioport.h>
+ #include <linux/vmalloc.h>
+ #include <linux/init.h>
+-#include <linux/mtd/compatmac.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/mtdram.h>
+ 
+--- a/drivers/mtd/devices/pmc551.c
++++ b/drivers/mtd/devices/pmc551.c
+@@ -98,7 +98,6 @@
+ 
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/pmc551.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ static struct mtd_info *pmc551list;
+ 
+--- a/drivers/mtd/inftlmount.c
++++ b/drivers/mtd/inftlmount.c
+@@ -34,7 +34,6 @@
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/nftl.h>
+ #include <linux/mtd/inftl.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ /*
+  * find_boot_record: Find the INFTL Media Header and its Spare copy which
+--- a/drivers/mtd/mtdchar.c
++++ b/drivers/mtd/mtdchar.c
+@@ -18,7 +18,7 @@
+ #include <linux/mount.h>
+ 
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/compatmac.h>
++#include <linux/mtd/map.h>
+ 
+ #include <asm/uaccess.h>
+ 
+--- a/drivers/mtd/mtdcore.c
++++ b/drivers/mtd/mtdcore.c
+@@ -17,7 +17,6 @@
+ #include <linux/err.h>
+ #include <linux/ioctl.h>
+ #include <linux/init.h>
+-#include <linux/mtd/compatmac.h>
+ #include <linux/proc_fs.h>
+ #include <linux/idr.h>
+ #include <linux/backing-dev.h>
+--- a/drivers/mtd/mtdpart.c
++++ b/drivers/mtd/mtdpart.c
+@@ -17,7 +17,6 @@
+ #include <linux/kmod.h>
+ #include <linux/mtd/mtd.h>
+ #include <linux/mtd/partitions.h>
+-#include <linux/mtd/compatmac.h>
+ 
+ /* Our partition linked list */
+ static LIST_HEAD(mtd_partitions);

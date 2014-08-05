@@ -1,0 +1,11 @@
+--- linux-2.6.32.33/arch/mips/kernel/scall64-n32.S	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/scall64-n32.S	2011-03-26 03:39:49.000000000 +0800
+@@ -385,7 +385,7 @@
+ 	PTR	sys_fchmodat
+ 	PTR	sys_faccessat
+ 	PTR	compat_sys_pselect6
+-	PTR	sys_ppoll			/* 6265 */
++	PTR	compat_sys_ppoll		/* 6265 */
+ 	PTR	sys_unshare
+ 	PTR	sys_splice
+ 	PTR	sys_sync_file_range

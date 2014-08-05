@@ -1,0 +1,16 @@
+--- linux-2.6.36.4/drivers/mtd/nand/s3c_nand.c	2011-05-12 08:39:03.000000000 +0100
++++ linux-2.6.36.4/drivers/mtd/nand/s3c_nand.c.mod	2011-08-07 13:17:02.000000000 +0100
+@@ -1193,8 +1193,11 @@
+ 
+ 		printk("S3C NAND Driver is using hardware ECC.\n");
+ #else
+-		nand->ecc.mode = NAND_ECC_SOFT;
+-		printk("S3C NAND Driver is using software ECC.\n");
++//		nand->ecc.mode = NAND_ECC_SOFT;
++//		printk("S3C NAND Driver is using software ECC.\n");
++		
++		nand->ecc.mode = NAND_ECC_NONE;
++		printk("S3C NAND Driver ECC Disabled.\n");
+ #endif
+ 		if (nand_scan(s3c_mtd, 1)) {
+ 			ret = -ENXIO;

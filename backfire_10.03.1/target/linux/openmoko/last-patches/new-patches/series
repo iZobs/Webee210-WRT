@@ -1,0 +1,122 @@
+# fixes that should already be upstream
+explicitly-link-notes-section.patch
+gta01-no_nand_partitions.patch
+neo1973-soc-include-fix.patch
+asoc-neo1973_wm8753-power.patch
+asoc-core-suspend_resume.patch
+
+# these looks like bugs in upstream
+fix-i2c-s3c2410-resume-race.patch
+resume-timers-wq.patch
+wm8753-rout2-inv.patch
+
+# GTA01 core feature set
+s3c2410-bbt.patch
+gta01-pcf50606.patch
+gta01-core.patch
+gta01-jbt6k74.patch
+gta01-inputdevice.patch
+gta01-power_control.patch
+s3c2410-pwm.patch
+gta01-vibrator.patch
+gta01-backlight.patch
+
+# Touchscreen for S3C24xx
+s3c2410_touchscreen.patch
+s3c2410_ts-gta01.patch
+
+# pending review/
+i2c-permit_invalid_addrs.patch
+g_ether-highpower.patch
+g_ether-vendor_product.patch
+
+# SD/MMC for S3C24xx
+s3c_mci.patch
+s3c_mci-gta01.patch
+qt2410-s3c_mci-pdata.patch
+
+# hxd8 required pre-patches
+s3c24xx-nand-largepage.patch
+s3c2410_udc-2440_dual_packet-workaround.patch
+
+# hxd8 feature set
+hxd8-core.patch
+hxd8-tsl256x.patch
+
+# gta02 required pre-patches
+s3c2442b-cpuid.patch
+
+# gta02 feature set
+pcf50633.patch
+pcf50633-suspend-hacks.patch
+smedia-glamo.patch
+glamo-mmc.patch
+gta02-core.patch
+gta02-power_control.patch
+gta02-sound.patch
+lis302dl.patch
+gta02-leds.patch
+gta02-acc.patch
+pcf506xx.patch
+gta02-bt-fixes.patch
+
+# additional local stuff
+yaffs2-20070905.patch
+openmoko-logo.patch
+config-nr-tty-devices.patch
+pm-debug_less_verbose.patch
+s3c2410_serial-nodebug.patch
+input-nots-mousedev.patch
+s3c2440-nand-disable-hwecc.patch
+
+# qt2410 local hacks
+qt2410-cs8900.patch
+s3c2410-qt2410-buttons.patch
+
+# local hack
+fail-unless-uimage.patch
+
+# also pushed upstream - remove when it trickled back down
+montour-audio.patch
+
+# FIQ code
+introduce-fiq-basis.patch
+introduce-fiq-use-timer3-as-source.patch
+introduce-fiq-migrate-vibrator-gta02-only.patch
+fiq-hdq.patch
+bq27000-battery-driver.patch
+
+# OE patches
+fix-EVIOCGRAB-semantics.patch
+iis-suspend.patch
+s3c24xx-pcm-suspend.patch
+s3c2410-usb-switch.patch
+
+# Atheros WLAN driver
+pnp_fixes.patch
+atheros_2_0_function.patch
+atheros_2_0_hcd.patch
+atheros_2_0_sdio_stack.patch
+
+# bad bug
+fix-hwecc-2410.patch
+
+# pending further review
+fix-pcf50606-LOWBAT-kill-init.patch
+fix-pcf50633-LOWBAT-kill-init.patch
+
+# temporary work-around. awaiting decision on correct fix from upstream.
+gta01-dehang-printk.patch
+
+# debugging support
+#dump-gpio.patch
+
+# leapfrogged from upstream
+kexec-atags.patch
+
+# Preliminary suspend/resume power saving improvements
+suspend-prelim1.patch
+
+# temporary work-arounds
+gta02-sound-bandaid.patch
+glamo-cmdqueue-bandaid.patch

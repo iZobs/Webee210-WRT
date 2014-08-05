@@ -1,0 +1,416 @@
+--- linux-2.6.32.33/arch/mips/Makefile	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/Makefile	2011-03-26 03:39:49.000000000 +0800
+@@ -51,6 +51,16 @@
+ ifndef CONFIG_PROFILING
+ cflags-y := -ffunction-sections
+ endif
++ifndef CONFIG_FUNCTION_TRACER
++cflags-y := -ffunction-sections
++endif
++ifdef CONFIG_FUNCTION_GRAPH_TRACER
++  ifndef KBUILD_MCOUNT_RA_ADDRESS
++    ifeq ($(call cc-option-yn,-mmcount-ra-address), y)
++      cflags-y += -mmcount-ra-address -DKBUILD_MCOUNT_RA_ADDRESS
++    endif
++  endif
++endif
+ cflags-y += $(call cc-option, -mno-check-zero-division)
+ 
+ ifdef CONFIG_32BIT
+@@ -71,6 +80,7 @@
+ 
+ all-$(CONFIG_BOOT_ELF32)	:= $(vmlinux-32)
+ all-$(CONFIG_BOOT_ELF64)	:= $(vmlinux-64)
++all-$(CONFIG_SYS_SUPPORTS_ZBOOT)+= vmlinuz
+ 
+ #
+ # GCC uses -G 0 -mabicalls -fpic as default.  We don't want PIC in the kernel
+@@ -126,6 +136,11 @@
+ cflags-$(CONFIG_CPU_LOONGSON2)	+= -Wa,--trap
+ cflags-$(CONFIG_CPU_LOONGSON2E) += \
+ 	$(call cc-option,-march=loongson2e,-march=r4600)
++cflags-$(CONFIG_CPU_LOONGSON2F) += \
++	$(call cc-option,-march=loongson2f,-march=r4600) \
++	$(call as-option,-Wa$(comma)-mfix-ls2f-kernel,) \
++	$(call as-option,-Wa$(comma)-mfix-loongson2f-nop,) \
++	$(call as-option,-Wa$(comma)-mfix-loongson2f-jump,)
+ 
+ cflags-$(CONFIG_CPU_MIPS32_R1)	+= $(call cc-option,-march=mips32,-mips32 -U_MIPS_ISA -D_MIPS_ISA=_MIPS_ISA_MIPS32) \
+ 			-Wa,-mips32 -Wa,--trap
+@@ -326,6 +341,7 @@
+ cflags-$(CONFIG_MACH_LOONGSON) += -I$(srctree)/arch/mips/include/asm/mach-loongson \
+                     -mno-branch-likely
+ load-$(CONFIG_LEMOTE_FULOONG2E) +=0xffffffff80100000
++load-$(CONFIG_LEMOTE_MACH2F) +=0xffffffff80200000
+ 
+ #
+ # MIPS Malta board
+@@ -333,7 +349,7 @@
+ core-$(CONFIG_MIPS_MALTA)	+= arch/mips/mti-malta/
+ cflags-$(CONFIG_MIPS_MALTA)	+= -I$(srctree)/arch/mips/include/asm/mach-malta
+ load-$(CONFIG_MIPS_MALTA)	+= 0xffffffff80100000
+-all-$(CONFIG_MIPS_MALTA)	:= vmlinux.bin
++all-$(CONFIG_MIPS_MALTA)	:= vmlinuz.bin
+ 
+ #
+ # MIPS SIM
+@@ -443,6 +459,13 @@
+ load-$(CONFIG_NEC_MARKEINS)	+= 0xffffffff88100000
+ 
+ #
++# Cisco PowerTV Platform
++#
++core-$(CONFIG_POWERTV)		+= arch/mips/powertv/
++cflags-$(CONFIG_POWERTV)        += -I$(srctree)/arch/mips/include/asm/mach-powertv
++load-$(CONFIG_POWERTV)		+= 0xffffffff90800000
++
++#
+ # SGI IP22 (Indy/Indigo2)
+ #
+ # Set the load address to >= 0xffffffff88069000 if you want to leave space for
+@@ -583,7 +606,7 @@
+ else
+ load-$(CONFIG_SNI_RM)		+= 0xffffffff80030000
+ endif
+-all-$(CONFIG_SNI_RM)		:= vmlinux.ecoff
++all-$(CONFIG_SNI_RM)		:= vmlinuz.ecoff
+ 
+ #
+ # Common TXx9
+@@ -701,9 +724,23 @@
+ 	$(OBJCOPY) -O $(64bit-bfd) $(OBJCOPYFLAGS) $< $@
+ 
+ makeboot =$(Q)$(MAKE) $(build)=arch/mips/boot VMLINUX=$(vmlinux-32) $(1)
++makezboot =$(Q)$(MAKE) $(build)=arch/mips/boot/compressed \
++	   VMLINUX_LOAD_ADDRESS=$(load-y) 32bit-bfd=$(32bit-bfd) $(1)
+ 
+ all:	$(all-y)
+ 
++vmlinuz: vmlinux FORCE
++	+@$(call makezboot,$@)
++
++vmlinuz.bin: vmlinux
++	+@$(call makezboot,$@)
++
++vmlinuz.ecoff: vmlinux
++	+@$(call makezboot,$@)
++
++vmlinuz.srec: vmlinux
++	+@$(call makezboot,$@)
++
+ vmlinux.bin: $(vmlinux-32)
+ 	+@$(call makeboot,$@)
+ 
+@@ -728,11 +765,13 @@
+ 
+ install:
+ 	$(Q)install -D -m 755 vmlinux $(INSTALL_PATH)/vmlinux-$(KERNELRELEASE)
++	$(Q)install -D -m 755 vmlinuz $(INSTALL_PATH)/vmlinuz-$(KERNELRELEASE)
+ 	$(Q)install -D -m 644 .config $(INSTALL_PATH)/config-$(KERNELRELEASE)
+ 	$(Q)install -D -m 644 System.map $(INSTALL_PATH)/System.map-$(KERNELRELEASE)
+ 
+ archclean:
+ 	@$(MAKE) $(clean)=arch/mips/boot
++	@$(MAKE) $(clean)=arch/mips/boot/compressed
+ 	@$(MAKE) $(clean)=arch/mips/lasat
+ 
+ define archhelp
+@@ -740,10 +779,18 @@
+ 	echo '  vmlinux.ecoff        - ECOFF boot image'
+ 	echo '  vmlinux.bin          - Raw binary boot image'
+ 	echo '  vmlinux.srec         - SREC boot image'
++	echo '  vmlinuz              - Compressed boot(zboot) image'
++	echo '  vmlinuz.ecoff        - ECOFF zboot image'
++	echo '  vmlinuz.bin          - Raw binary zboot image'
++	echo '  vmlinuz.srec         - SREC zboot image'
+ 	echo
+ 	echo '  These will be default as apropriate for a configured platform.'
+ endef
+ 
+ CLEAN_FILES += vmlinux.32 \
+ 	       vmlinux.64 \
+-	       vmlinux.ecoff
++	       vmlinux.ecoff \
++	       vmlinuz \
++	       vmlinuz.ecoff \
++	       vmlinuz.bin \
++	       vmlinuz.srec
+--- linux-2.6.32.33/arch/mips/Kconfig	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/Kconfig	2011-03-26 03:39:49.000000000 +0800
+@@ -5,9 +5,14 @@
+ 	select HAVE_IDE
+ 	select HAVE_OPROFILE
+ 	select HAVE_ARCH_KGDB
++	select HAVE_FUNCTION_TRACER
++	select HAVE_FUNCTION_TRACE_MCOUNT_TEST
++	select HAVE_DYNAMIC_FTRACE
++	select HAVE_FTRACE_MCOUNT_RECORD
++	select HAVE_FUNCTION_GRAPH_TRACER
+ 	# Horrible source of confusion.  Die, die, die ...
+ 	select EMBEDDED
+-	select RTC_LIB if !LEMOTE_FULOONG2E
++	select RTC_LIB if !MACH_LOONGSON
+ 
+ mainmenu "Linux/MIPS Kernel Configuration"
+ 
+@@ -22,6 +27,7 @@
+ 
+ config MACH_ALCHEMY
+ 	bool "Alchemy processor based machines"
++	select SYS_SUPPORTS_ZBOOT
+ 
+ config AR7
+ 	bool "Texas Instruments AR7"
+@@ -36,6 +42,7 @@
+ 	select SYS_HAS_EARLY_PRINTK
+ 	select SYS_SUPPORTS_32BIT_KERNEL
+ 	select SYS_SUPPORTS_LITTLE_ENDIAN
++	select SYS_SUPPORTS_ZBOOT_UART16550
+ 	select GENERIC_GPIO
+ 	select GCD
+ 	select VLYNQ
+@@ -192,6 +199,7 @@
+ 
+ config MACH_LOONGSON
+ 	bool "Loongson family of machines"
++	select SYS_SUPPORTS_ZBOOT
+ 	help
+ 	  This enables the support of Loongson family of machines.
+ 
+@@ -233,6 +241,7 @@
+ 	select SYS_SUPPORTS_MIPS_CMP
+ 	select SYS_SUPPORTS_MULTITHREADING
+ 	select SYS_SUPPORTS_SMARTMIPS
++	select SYS_SUPPORTS_ZBOOT
+ 	help
+ 	  This enables support for the MIPS Technologies Malta evaluation
+ 	  board.
+@@ -334,6 +343,24 @@
+ 	  Yosemite is an evaluation board for the RM9000x2 processor
+ 	  manufactured by PMC-Sierra.
+ 
++config POWERTV
++	bool "Cisco PowerTV"
++	select BOOT_ELF32
++	select CEVT_R4K
++	select CPU_MIPSR2_IRQ_VI
++	select CPU_MIPSR2_IRQ_EI
++	select CSRC_POWERTV
++	select DMA_NONCOHERENT
++	select HW_HAS_PCI
++	select SYS_HAS_EARLY_PRINTK
++	select SYS_HAS_CPU_MIPS32_R2
++	select SYS_SUPPORTS_32BIT_KERNEL
++	select SYS_SUPPORTS_BIG_ENDIAN
++	select SYS_SUPPORTS_HIGHMEM
++	select USB_OHCI_LITTLE_ENDIAN
++	help
++	  This enables support for the Cisco PowerTV Platform.
++
+ config SGI_IP22
+ 	bool "SGI IP22 (Indy/Indigo2)"
+ 	select ARC
+@@ -501,6 +528,7 @@
+ 	bool "Sibyte BCM91250A-SWARM"
+ 	select BOOT_ELF32
+ 	select DMA_COHERENT
++	select HAVE_PATA_PLATFORM
+ 	select NR_CPUS_DEFAULT_2
+ 	select SIBYTE_SB1250
+ 	select SWAP_IO_SPACE
+@@ -515,6 +543,7 @@
+ 	depends on EXPERIMENTAL
+ 	select BOOT_ELF32
+ 	select DMA_COHERENT
++	select HAVE_PATA_PLATFORM
+ 	select NR_CPUS_DEFAULT_2
+ 	select SIBYTE_SB1250
+ 	select SWAP_IO_SPACE
+@@ -679,6 +708,7 @@
+ source "arch/mips/jazz/Kconfig"
+ source "arch/mips/lasat/Kconfig"
+ source "arch/mips/pmc-sierra/Kconfig"
++source "arch/mips/powertv/Kconfig"
+ source "arch/mips/sgi-ip27/Kconfig"
+ source "arch/mips/sibyte/Kconfig"
+ source "arch/mips/txx9/Kconfig"
+@@ -778,6 +808,9 @@
+ config CSRC_IOASIC
+ 	bool
+ 
++config CSRC_POWERTV
++	bool
++
+ config CSRC_R4K_LIB
+ 	bool
+ 
+@@ -807,8 +840,8 @@
+ 	bool
+ 
+ config EARLY_PRINTK
+-	bool "Early printk" if EMBEDDED && DEBUG_KERNEL
+-	depends on SYS_HAS_EARLY_PRINTK
++	bool "Early printk" if EMBEDDED
++	depends on SYS_HAS_EARLY_PRINTK && DEBUG_KERNEL
+ 	default y
+ 	help
+ 	  This option enables special console drivers which allow the kernel
+@@ -1087,6 +1120,23 @@
+ 	  The Loongson 2E processor implements the MIPS III instruction set
+ 	  with many extensions.
+ 
++	  It has an internal FPGA northbridge, which is compatiable to
++	  bonito64.
++
++config CPU_LOONGSON2F
++	bool "Loongson 2F"
++	depends on SYS_HAS_CPU_LOONGSON2F
++	select CPU_LOONGSON2
++	select GENERIC_GPIO
++	select ARCH_REQUIRE_GPIOLIB
++	help
++	  The Loongson 2F processor implements the MIPS III instruction set
++	  with many extensions.
++
++	  Loongson2F have built-in DDR2 and PCIX controller. The PCIX controller
++	  have a similar programming interface with FPGA northbridge used in
++	  Loongson2E.
++
+ config CPU_MIPS32_R1
+ 	bool "MIPS32 Release 1"
+ 	depends on SYS_HAS_CPU_MIPS32_R1
+@@ -1312,6 +1362,17 @@
+ 
+ endchoice
+ 
++config SYS_SUPPORTS_ZBOOT
++	bool
++	select HAVE_KERNEL_GZIP
++	select HAVE_KERNEL_BZIP2
++	select HAVE_KERNEL_LZMA
++	select HAVE_KERNEL_LZO
++
++config SYS_SUPPORTS_ZBOOT_UART16550
++	bool
++	select SYS_SUPPORTS_ZBOOT
++
+ config CPU_LOONGSON2
+ 	bool
+ 	select CPU_SUPPORTS_32BIT_KERNEL
+@@ -1321,6 +1382,12 @@
+ config SYS_HAS_CPU_LOONGSON2E
+ 	bool
+ 
++config SYS_HAS_CPU_LOONGSON2F
++	bool
++	select CPU_SUPPORTS_CPUFREQ
++	select CPU_SUPPORTS_ADDRWINCFG if 64BIT
++	select CPU_SUPPORTS_UNCACHED_ACCELERATED
++
+ config SYS_HAS_CPU_MIPS32_R1
+ 	bool
+ 
+@@ -1429,8 +1496,17 @@
+ 	bool
+ config CPU_SUPPORTS_64BIT_KERNEL
+ 	bool
++config CPU_SUPPORTS_CPUFREQ
++	bool
++config CPU_SUPPORTS_ADDRWINCFG
++	bool
+ config CPU_SUPPORTS_HUGEPAGES
+ 	bool
++config CPU_SUPPORTS_UNCACHED_ACCELERATED
++	bool
++config MIPS_PGD_C0_CONTEXT
++	bool
++	default y if 64BIT && CPU_MIPSR2
+ 
+ #
+ # Set to y for ptrace access to watch registers.
+@@ -1914,6 +1990,27 @@
+ source "kernel/time/Kconfig"
+ 
+ #
++# High Resolution sched_clock() Configuration
++#
++
++config CPU_HAS_FIXED_C0_COUNT
++	bool
++
++config HR_SCHED_CLOCK
++	bool "High Resolution sched_clock()"
++	depends on CSRC_R4K && (CPU_HAS_FIXED_C0_COUNT || !CPU_FREQ)
++	default n
++	help
++	  This option enables the MIPS c0 count based high resolution
++	  sched_clock().
++
++	  If you need a ns precision timestamp, you are recommended to enable
++	  this option. For example, if you are using the Ftrace subsystem to do
++	  real time tracing, this option is needed.
++
++	  If unsure, disable it.
++
++#
+ # Timer Interrupt Frequency Configuration
+ #
+ 
+@@ -2042,15 +2139,6 @@
+ 
+ source "init/Kconfig"
+ 
+-config PROBE_INITRD_HEADER
+-	bool "Probe initrd header created by addinitrd"
+-	depends on BLK_DEV_INITRD
+-	help
+-	  Probe initrd header at the last page of kernel image.
+-	  Say Y here if you are using arch/mips/boot/addinitrd.c to
+-	  add initrd or initramfs image to the kernel image.
+-	  Otherwise, say N.
+-
+ source "kernel/Kconfig.freezer"
+ 
+ menu "Bus options (PCI, PCMCIA, EISA, ISA, TC)"
+@@ -2122,6 +2210,7 @@
+ 
+ config I8253
+ 	bool
++	select MIPS_EXTERNAL_TIMER
+ 
+ config ZONE_DMA32
+ 	bool
+@@ -2198,6 +2287,8 @@
+ 
+ endmenu
+ 
++source "arch/mips/kernel/cpufreq/Kconfig"
++
+ source "net/Kconfig"
+ 
+ source "drivers/Kconfig"
+--- linux-2.6.32.33/arch/mips/Kconfig.debug	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/Kconfig.debug	2011-03-26 03:39:49.000000000 +0800
+@@ -51,4 +51,22 @@
+ 	  arch/mips/include/asm/debug.h for debugging macros.
+ 	  If unsure, say N.
+ 
++config DEBUG_ZBOOT
++	bool "Enable compressed kernel support debugging"
++	depends on DEBUG_KERNEL && SYS_SUPPORTS_ZBOOT
++	help
++	  If you want to add compressed kernel support to a new board, and the
++	  board supports uart16550 compatible serial port, please select
++	  SYS_SUPPORTS_ZBOOT_UART16550 for your board and enable this option to
++	  debug it.
++
++	  If your board doesn't support uart16550 compatible serial port, you
++	  can try to select SYS_SUPPORTS_ZBOOT and use the other methods to
++	  debug it. for example, add a new serial port support just as
++	  arch/mips/boot/compressed/uart-16550.c does.
++
++	  After the compressed kernel support works, please disable this option
++	  to reduce the kernel image size and speed up the booting procedure a
++	  little.
++
+ endmenu

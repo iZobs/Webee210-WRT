@@ -1,0 +1,9 @@
+diff -Nur linux-2.6.32.33/drivers/dma/txx9dmac.c linux-2.6.32.33-loongson2f/drivers/dma/txx9dmac.c
+--- linux-2.6.32.33/drivers/dma/txx9dmac.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/dma/txx9dmac.c	2011-03-26 03:39:49.000000000 +0800
+@@ -1359,3 +1359,5 @@
+ MODULE_LICENSE("GPL");
+ MODULE_DESCRIPTION("TXx9 DMA Controller driver");
+ MODULE_AUTHOR("Atsushi Nemoto <anemo@mba.ocn.ne.jp>");
++MODULE_ALIAS("platform:txx9dmac");
++MODULE_ALIAS("platform:txx9dmac-chan");

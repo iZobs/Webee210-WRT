@@ -1,0 +1,41 @@
+--- linux-2.6.32.27/arch/arm/mach-s3c2440/s3c2440.c.orig	2011-12-07 02:21:15.804888592 +0800
++++ linux-2.6.32.27/arch/arm/mach-s3c2440/s3c2440.c	2011-12-07 02:21:15.840888592 +0800
+@@ -45,7 +45,11 @@
+ 
+ 	s3c_device_wdt.resource[1].start = IRQ_S3C2440_WDT;
+ 	s3c_device_wdt.resource[1].end   = IRQ_S3C2440_WDT;
++	
++	/* make sure SD/MMC driver can distinguish 2440 from 2410 */
++	s3c_device_sdi.name = "s3c2440-sdi";
+ 
++	
+ 	/* register our system device for everything else */
+ 
+ 	return sysdev_register(&s3c2440_sysdev);
+--- linux-2.6.32.27/drivers/mmc/host/s3cmci.c.orig	2011-11-09 08:02:43.000000000 +0800
++++ linux-2.6.32.27/drivers/mmc/host/s3cmci.c	2011-12-07 00:52:12.000000000 +0800
+@@ -22,6 +22,7 @@
+ #include <linux/gpio.h>
+ #include <linux/irq.h>
+ #include <linux/io.h>
++#include <linux/delay.h>
+ 
+ #include <mach/dma.h>
+ 
+@@ -493,6 +494,7 @@
+ 	struct s3cmci_host *host = (struct s3cmci_host *) data;
+ 
+ 	s3cmci_disable_irq(host, true);
++	udelay(50);
+ 
+ 	if (host->pio_active == XFER_WRITE)
+ 		do_pio_write(host);
+@@ -1601,7 +1603,7 @@
+ 	host->pio_active 	= XFER_NONE;
+ 
+ #ifdef CONFIG_MMC_S3C_PIODMA
+-	host->dodma		= host->pdata->dma;
++	host->dodma		= host->pdata->use_dma;
+ #endif
+ 
+ 	host->mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);

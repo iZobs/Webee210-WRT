@@ -1,0 +1,77 @@
+timeout 5
+default 0
+showmenu 1
+
+title	Linux-2.6.32.33 for Loongson
+	kernel /dev/fs/ext2@wd0e/boot/vmlinux-2.6.32.33
+	args console=tty no_auto_cmd quiet root=/dev/hda5 machtype=yeeloong
+
+title	Test for Loongson
+	kernel /dev/fs/ext2@wd0a/boot/vmlinux-2.6.32.33.openwrt
+	args console=tty root=/dev/hda5
+
+title   OpenWrt
+	kernel /dev/fs/ext2@wd0a/boot/vmlinux-2.6.32.33.openwrt
+	args console=tty root=/dev/hda1
+
+title Lemote Recovery Tool
+	kernel /dev/fs/ext2@wd0b/vmlinuz
+	args console=tty machtype=yeeloong video=smifb:1024x600-16@60 resume=/dev/hda3 recover=localdisk
+	recovery 0
+
+title Cocreate Linux Desktop for Loongson 
+	kernel /dev/fs/ext2@wd0e/boot/vmlinux
+	args console=tty no_auto_cmd quiet root=/dev/hda5 machtype=yeeloong video=smifb:1024x600-16@60 resume=/dev/hda3
+
+########################################################
+
+
+
+default 0
+timeout 3
+showmenu 1
+
+title		debian6
+ kernel		(wd0,0)/vmlinux
+ args		console=tty root=/dev/sda2 console=tty no_auto_cmd resume=/dev/sda3 usbcore.autosuspend=1 libata.force=80c quiet
+
+title                android 1.5 demo 
+kernel                (wd0,0)/android
+args                console=tty loglevel=0 androidboot.hardware=yl2f no_auto_cmd 
+initrd (wd0,0)/initrd.img
+
+title		usb
+ kernel		(usb0,0)/vmlinux
+ args		console=tty root=/dev/sda1 console=tty no_auto_cmd
+
+#   machtype=     "lemote-fuloong-2e-box",
+#      "lemote-fuloong-2f-box",
+#      "lemote-mengloong-2f-7inches",
+#      "lemote-yeeloong-2f-8.9inches",
+#      "dexxon-gidum-2f-10inches",
+#      "lemote-nas-2f",
+#      "lemote-lynloong-2f",
+
+
+
+### BEGIN AUTOMAGIC KERNELS LIST
+## lines between the AUTOMAGIC KERNELS LIST markers will be modified
+## by the update-pmon script except for the default options below
+
+## DO NOT UNCOMMENT THEM, Just edit them to your needs
+
+## ## Start Default Options ##
+## default kernel options
+## default kernel options for automagic boot options
+## If you want special options for specific kernels use kopt_x_y_z
+## where x.y.z is kernel version. Minor versions can be omitted.
+## e.g. kopt=root=/dev/hda1 ro
+# kopt=root=/dev/sda2 no_auto_cmd resume=/dev/sda3 usbcore.autosuspend=1 libata.force=80c quiet
+
+## ## End Default Options ##
+
+title		Debian GNU/Linux (2.6.39.3-loongson-2f)
+ kernel		(wd0,0)/vmlinuz-2.6.39.3-loongson-2f
+ args		console=tty root=/dev/sda2 no_auto_cmd resume=/dev/sda3 usbcore.autosuspend=1 libata.force=80c quiet
+
+### END AUTOMAGIC KERNELS LIST

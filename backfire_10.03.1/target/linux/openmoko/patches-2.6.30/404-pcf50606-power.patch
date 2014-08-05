@@ -1,0 +1,298 @@
+--- linux-2.6.32.orig/arch/arm/mach-s3c2410/Kconfig
++++ linux-2.6.32/arch/arm/mach-s3c2410/Kconfig
+@@ -143,6 +143,7 @@
+ 	select PCF50606_WATCHDOG
+ 	select RTC_DRV_PCF50606
+ 	select REGULATOR_PCF50606
++	select CHARGER_PCF50606
+ 	help
+ 	   Say Y here if you are using the FIC Neo1973 GSM Phone
+ 
+--- linux-2.6.30.10/drivers/power/Kconfig	2009-12-04 14:00:07.000000000 +0800
++++ linux-2.6.31/drivers/power/Kconfig	2013-01-08 16:32:39.476268002 +0800
+@@ -88,6 +88,12 @@
+ 	help
+ 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
+ 
++config CHARGER_PCF50606
++	tristate "Support for NXP PCF50606 MBC"
++	depends on MFD_PCF50606
++	help
++	  Say Y to include support for NXP PCF50606 Battery Charger.
++
+ config BATTERY_BQ27000_HDQ
+ 	tristate "BQ27000 HDQ battery monitor driver"
+ 	help
+--- linux-2.6.30.10/drivers/power/Makefile	2009-12-04 14:00:07.000000000 +0800
++++ linux-2.6.31/drivers/power/Makefile	2013-01-08 16:32:39.476268002 +0800
+@@ -26,6 +26,7 @@
+ obj-$(CONFIG_BATTERY_BQ27x00)	+= bq27x00_battery.o
+ obj-$(CONFIG_BATTERY_DA9030)	+= da9030_battery.o
+ obj-$(CONFIG_CHARGER_PCF50633)	+= pcf50633-charger.o
++obj-$(CONFIG_CHARGER_PCF50606)	+= pcf50606-charger.o
+ obj-$(CONFIG_BATTERY_BQ27000_HDQ)	+= bq27000_battery.o
+ 
+ obj-$(CONFIG_HDQ_GPIO_BITBANG)  += hdq.o
+--- linux-2.6.30.10/drivers/power/pcf50606-charger.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.31/drivers/power/pcf50606-charger.c	2013-01-08 16:32:39.480268002 +0800
+@@ -0,0 +1,260 @@
++/* NXP PCF50606 Main Battery Charger Driver
++ *
++ * (C) 2006-2008 by Openmoko, Inc.
++ * Author: Balaji Rao <balajirrao@openmoko.org>
++ * All rights reserved.
++ *
++ * Broken down from monstrous PCF50606 driver mainly by
++ * Harald Welte, Andy Green and Werner Almesberger
++ *
++ *  This program is free software; you can redistribute  it and/or modify it
++ *  under  the terms of  the GNU General  Public License as published by the
++ *  Free Software Foundation;  either version 2 of the  License, or (at your
++ *  option) any later version.
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/types.h>
++#include <linux/device.h>
++#include <linux/sysfs.h>
++#include <linux/platform_device.h>
++#include <linux/power_supply.h>
++
++#include <linux/mfd/pcf50606/core.h>
++#include <linux/mfd/pcf50606/mbc.h>
++
++struct pcf50606_mbc {
++	struct pcf50606 *pcf;
++
++	int charger_online;
++	struct power_supply charger;
++};
++
++int pcf50606_charge_fast(struct pcf50606 *pcf, int on)
++{
++	struct pcf50606_mbc *mbc = platform_get_drvdata(pcf->mbc_pdev);
++
++	/*
++	 * This is a fix to work around boot-time ordering problems if
++	 * the s3c2410_udc is initialized before the pcf50606 mbc is
++	 * ready.
++	 */
++	if (!mbc)
++		return -ENODEV;
++
++	if (on) {
++		pcf50606_reg_set_bit_mask(pcf, PCF50606_REG_MBCC1,
++				 PCF50606_MBCC1_AUTOFST,
++				 PCF50606_MBCC1_AUTOFST);\
++			mbc->charger_online = 1;
++	} else {
++		/* disable automatic fast-charge */
++		pcf50606_reg_clear_bits(pcf, PCF50606_REG_MBCC1,
++					PCF50606_MBCC1_AUTOFST);
++		/* switch to idle mode to abort existing charge process */
++		pcf50606_reg_set_bit_mask(pcf, PCF50606_REG_MBCC1,
++				PCF50606_MBCC1_CHGMOD_MASK,
++				PCF50606_MBCC1_CHGMOD_IDLE);
++			mbc->charger_online = 0;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(pcf50606_charge_fast);
++
++static const char *charge_mode_descs[] = {
++	"qualification",
++	"pre",
++	"trickle",
++	"fast_cccv",
++	"idle",
++};
++
++static ssize_t
++show_charge_mode(struct device *dev, struct device_attribute *attr, char *buf)
++{
++	struct pcf50606_mbc *mbc = dev_get_drvdata(dev);
++	const char **desc = charge_mode_descs;
++
++	uint8_t charge_mode = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
++	charge_mode &= PCF50606_MBCC1_CHGMOD_MASK;
++	switch (charge_mode) {
++	case PCF50606_MBCC1_CHGMOD_IDLE:
++		++desc;
++	case PCF50606_MBCC1_CHGMOD_FAST_CCCV:
++		++desc;
++	case PCF50606_MBCC1_CHGMOD_TRICKLE:
++		++desc;
++	case PCF50606_MBCC1_CHGMOD_PRE:
++		++desc;
++	case PCF50606_MBCC1_CHGMOD_QUAL:
++		return sprintf(buf, "%s\n", *desc);
++		break;
++	default:
++		return sprintf(buf, "unkown: %d\n", charge_mode);
++		break;
++	}
++}
++
++static ssize_t set_charge_mode(struct device *dev, struct device_attribute *attr,
++			   const char *buf, size_t count)
++{
++	struct pcf50606_mbc *mbc = dev_get_drvdata(dev);
++	uint8_t mbcc1 = pcf50606_reg_read(mbc->pcf, PCF50606_REG_MBCC1);
++
++	mbcc1 &= ~PCF50606_MBCC1_CHGMOD_MASK;
++
++	if (!strcmp(buf, "qualification"))
++		mbcc1 |= PCF50606_MBCC1_CHGMOD_QUAL;
++	else if (!strcmp(buf, "pre"))
++		mbcc1 |= PCF50606_MBCC1_CHGMOD_PRE;
++	else if (!strcmp(buf, "trickle"))
++		mbcc1 |= PCF50606_MBCC1_CHGMOD_TRICKLE;
++	else if (!strcmp(buf, "fast_cccv"))
++		mbcc1 |= PCF50606_MBCC1_CHGMOD_FAST_CCCV;
++	/* We don't allow the other fast modes for security reasons */
++	else if (!strcmp(buf, "idle"))
++		mbcc1 |= PCF50606_MBCC1_CHGMOD_IDLE;
++	else
++		return -EINVAL;
++
++	pcf50606_reg_write(mbc->pcf, PCF50606_REG_MBCC1, mbcc1);
++
++	return count;
++}
++
++static DEVICE_ATTR(charge_mode, S_IRUGO | S_IWUSR, show_charge_mode, set_charge_mode);
++
++static void
++pcf50606_mbc_irq_handler(int irq, void *data)
++{
++	struct pcf50606_mbc *mbc = data;
++
++	power_supply_changed(&mbc->charger);
++
++	if (mbc->pcf->pdata->mbc_event_callback)
++		mbc->pcf->pdata->mbc_event_callback(mbc->pcf, irq);
++}
++
++static int charger_get_property(struct power_supply *psy,
++			enum power_supply_property psp,
++			union power_supply_propval *val)
++{
++	struct pcf50606_mbc *mbc = container_of(psy, struct pcf50606_mbc, charger);
++	int ret = 0;
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_ONLINE:
++		val->intval =  mbc->charger_online;
++		break;
++	default:
++		ret = -EINVAL;
++		break;
++	}
++	return ret;
++}
++
++static enum power_supply_property power_props[] = {
++	POWER_SUPPLY_PROP_ONLINE,
++};
++
++static const uint8_t mbc_irq_handlers[] = {
++	PCF50606_IRQ_CHGINS,
++	PCF50606_IRQ_CHGRM,
++	PCF50606_IRQ_CHGFOK,
++	PCF50606_IRQ_CHGERR,
++	PCF50606_IRQ_CHGFRDY,
++	PCF50606_IRQ_CHGPROT,
++};
++
++static int __devinit pcf50606_mbc_probe(struct platform_device *pdev)
++{
++	struct pcf50606_mbc *mbc;
++	int ret;
++	size_t i;
++	uint8_t oocs;
++
++	mbc = kzalloc(sizeof(*mbc), GFP_KERNEL);
++	if (!mbc)
++		return -ENOMEM;
++
++	mbc->pcf = dev_to_pcf50606(pdev->dev.parent);
++
++	mbc->charger.name		= "charger";
++	mbc->charger.type		= POWER_SUPPLY_TYPE_MAINS;
++	mbc->charger.properties		= power_props;
++	mbc->charger.num_properties	= ARRAY_SIZE(power_props);
++	mbc->charger.get_property	= &charger_get_property;
++	mbc->charger.supplied_to	= mbc->pcf->pdata->batteries;
++	mbc->charger.num_supplicants	= mbc->pcf->pdata->num_batteries;
++
++	ret = power_supply_register(&pdev->dev, &mbc->charger);
++	if (ret) {
++		dev_err(mbc->pcf->dev, "failed to register charger\n");
++		kfree(mbc);
++		return ret;
++	}
++
++	/* Set up IRQ handlers */
++	for (i = 0; i < ARRAY_SIZE(mbc_irq_handlers); i++)
++		pcf50606_register_irq(mbc->pcf, mbc_irq_handlers[i],
++					pcf50606_mbc_irq_handler, mbc);
++
++	ret = sysfs_create_file(&pdev->dev.kobj,  &dev_attr_charge_mode.attr);
++	if (ret)
++		dev_err(mbc->pcf->dev, "failed to create sysfs entries\n");
++
++	oocs = pcf50606_reg_read(mbc->pcf, PCF50606_REG_OOCS);
++	if (oocs & PCF50606_OOCS_CHGOK)
++		pcf50606_mbc_irq_handler(PCF50606_IRQ_CHGINS, mbc);
++
++	platform_set_drvdata(pdev, mbc);
++
++	return 0;
++}
++
++static int __devexit pcf50606_mbc_remove(struct platform_device *pdev)
++{
++	struct pcf50606_mbc *mbc = platform_get_drvdata(pdev);
++	size_t i;
++
++	/* Remove IRQ handlers */
++	for (i = 0; i < ARRAY_SIZE(mbc_irq_handlers); i++)
++		pcf50606_free_irq(mbc->pcf, mbc_irq_handlers[i]);
++
++	power_supply_unregister(&mbc->charger);
++
++	platform_set_drvdata(pdev, NULL);
++	kfree(mbc);
++
++	return 0;
++}
++
++static struct platform_driver pcf50606_mbc_driver = {
++	.driver = {
++		.name = "pcf50606-mbc",
++		.owner = THIS_MODULE,
++	},
++	.probe = pcf50606_mbc_probe,
++	.remove = __devexit_p(pcf50606_mbc_remove),
++};
++
++static int __init pcf50606_mbc_init(void)
++{
++	return platform_driver_register(&pcf50606_mbc_driver);
++}
++module_init(pcf50606_mbc_init);
++
++static void __exit pcf50606_mbc_exit(void)
++{
++	platform_driver_unregister(&pcf50606_mbc_driver);
++}
++module_exit(pcf50606_mbc_exit);
++
++MODULE_AUTHOR("Balaji Rao <balajirrao@openmoko.org>");
++MODULE_DESCRIPTION("PCF50606 mbc driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:pcf50606-mbc");

@@ -1,0 +1,67 @@
+Patch to enable 24bit truecolor support (32bit per pixel) support to 
+s3c2410fb.c
+Index: linux-2.6.20.4-moko/arch/arm/mach-s3c2410/mach-gta01.c
+===================================================================
+--- linux-2.6.20.4-moko.orig/arch/arm/mach-s3c2410/mach-gta01.c	2007-04-08 14:01:47.000000000 +0200
++++ linux-2.6.20.4-moko/arch/arm/mach-s3c2410/mach-gta01.c	2007-04-08 14:02:09.000000000 +0200
+@@ -321,7 +321,7 @@
+ 
+ 	.bpp		= {
+ 		.min	= 1,
+-		.max	= 16,
++		.max	= 32,
+ 		.defval = 16,
+ 	},
+ };
+Index: linux-2.6.20.4-moko/drivers/video/s3c2410fb.c
+===================================================================
+--- linux-2.6.20.4-moko.orig/drivers/video/s3c2410fb.c	2007-04-08 12:59:39.000000000 +0200
++++ linux-2.6.20.4-moko/drivers/video/s3c2410fb.c	2007-04-08 14:02:09.000000000 +0200
+@@ -263,6 +263,7 @@
+ 			}
+ 			break;
+ 		case 24:
++		case 32:
+ 			/* 24 bpp 888 */
+ 			var->red.length		= 8;
+ 			var->red.offset		= 16;
+@@ -315,6 +316,12 @@
+ 			break;
+ 		case 16:
+ 			fbi->regs.lcdcon1 |= S3C2410_LCDCON1_TFT16BPP;
++			fbi->regs.lcdcon5 |= S3C2410_LCDCON5_HWSWP;
++			break;
++		case 24:
++		case 32:
++			fbi->regs.lcdcon1 |= S3C2410_LCDCON1_TFT24BPP;
++			fbi->regs.lcdcon5 &= ~S3C2410_LCDCON5_HWSWP;
+ 			break;
+ 
+ 		default:
+@@ -450,6 +457,8 @@
+ 
+ 	switch (var->bits_per_pixel)
+ 	{
++		case 32:
++		case 24:
+ 		case 16:
+ 			fbi->fb->fix.visual = FB_VISUAL_TRUECOLOR;
+ 			break;
+@@ -515,9 +524,17 @@
+ 		if (regno < 16) {
+ 			u32 *pal = fbi->fb->pseudo_palette;
+ 
++			switch (info->var.bits_per_pixel) {
++			case 16:
+ 			val  = chan_to_field(red,   &fbi->fb->var.red);
+ 			val |= chan_to_field(green, &fbi->fb->var.green);
+ 			val |= chan_to_field(blue,  &fbi->fb->var.blue);
++			break;
++			case 32:
++			red >>= 8; green >>= 8; blue >>= 8; transp >>= 8;
++			val = (transp << 24) | (red << 16) | (green << 8) | blue;
++			break;
++			}
+ 
+ 			pal[regno] = val;
+ 		}

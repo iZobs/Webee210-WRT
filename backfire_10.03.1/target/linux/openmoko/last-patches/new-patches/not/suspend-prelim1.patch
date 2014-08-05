@@ -1,0 +1,84 @@
+Index: linux-2.6.24-rc7/drivers/i2c/chips/pcf50633.c
+===================================================================
+--- linux-2.6.24-rc7.orig/drivers/i2c/chips/pcf50633.c
++++ linux-2.6.24-rc7/drivers/i2c/chips/pcf50633.c
+@@ -1615,6 +1615,9 @@
+ 		}
+ 	}
+ 
++	/* turn off the backlight */
++	__reg_write(pcf, PCF50633_REG_LEDENA, 0x00);
++
+ 	pcf->standby_regs.int1m = __reg_read(pcf, PCF50633_REG_INT1M);
+ 	pcf->standby_regs.int2m = __reg_read(pcf, PCF50633_REG_INT2M);
+ 	pcf->standby_regs.int3m = __reg_read(pcf, PCF50633_REG_INT3M);
+@@ -1639,6 +1642,8 @@
+ 
+ 	mutex_lock(&pcf->lock);
+ 
++	__reg_write(pcf, PCF50633_REG_LEDENA, 0x01);
++
+ 	/* Resume all saved registers that don't "survive" standby state */
+ 	__reg_write(pcf, PCF50633_REG_INT1M, pcf->standby_regs.int1m);
+ 	__reg_write(pcf, PCF50633_REG_INT2M, pcf->standby_regs.int2m);
+Index: linux-2.6.24-rc7/drivers/i2c/i2c-core.c
+===================================================================
+--- linux-2.6.24-rc7.orig/drivers/i2c/i2c-core.c
++++ linux-2.6.24-rc7/drivers/i2c/i2c-core.c
+@@ -1,4 +1,3 @@
+-/* i2c-core.c - a device driver for the iic-bus interface		     */
+ /* ------------------------------------------------------------------------- */
+ /*   Copyright (C) 1995-99 Simon G. Vogl
+ 
+@@ -136,10 +135,16 @@
+ 
+ 	if (!dev->driver)
+ 		return 0;
++#if 0
+ 	driver = to_i2c_driver(dev->driver);
+ 	if (!driver->suspend)
+ 		return 0;
+ 	return driver->suspend(to_i2c_client(dev), mesg);
++#else
++	if (!dev->driver->suspend)
++		return 0;
++	return dev->driver->suspend(dev, mesg);
++#endif
+ }
+ 
+ static int i2c_device_resume(struct device * dev)
+@@ -148,10 +153,16 @@
+ 
+ 	if (!dev->driver)
+ 		return 0;
++#if 0
+ 	driver = to_i2c_driver(dev->driver);
+ 	if (!driver->resume)
+ 		return 0;
+ 	return driver->resume(to_i2c_client(dev));
++#else
++	if (!dev->driver->resume)
++		return 0;
++	return dev->driver->resume(dev);
++#endif
+ }
+ 
+ static void i2c_client_release(struct device *dev)
+Index: linux-2.6.24-rc7/drivers/mfd/glamo/glamo-core.c
+===================================================================
+--- linux-2.6.24-rc7.orig/drivers/mfd/glamo/glamo-core.c
++++ linux-2.6.24-rc7/drivers/mfd/glamo/glamo-core.c
+@@ -1071,11 +1071,13 @@
+ #ifdef CONFIG_PM
+ static int glamo_suspend(struct platform_device *pdev, pm_message_t state)
+ {
++	glamo_power(glamo_handle, GLAMO_POWER_SUSPEND);
+ 	return 0;
+ }
+ 
+ static int glamo_resume(struct platform_device *pdev)
+ {
++	glamo_power(glamo_handle, GLAMO_POWER_ON);
+ 	return 0;
+ }
+ #else

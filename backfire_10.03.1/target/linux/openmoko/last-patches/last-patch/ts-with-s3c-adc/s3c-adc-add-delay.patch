@@ -1,0 +1,49 @@
+s3c24xx: introduce s3c-adc delay
+
+From: Vasily Khoruzhick <anarsoul@gmail.com>
+
+Without this patch we cannot make the s3c2410/s3c2440 touchscreen
+driver work. 
+
+We specify the delay value (S3C2410_ADCDLY).
+
+Signed-off-by: Vasily Khoruzhick <anarsoul@gmail.com>
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+diff --git a/arch/arm/plat-s3c24xx/adc.c b/arch/arm/plat-s3c24xx/adc.c
+index ee1baf1..a30a531 100644
+--- a/arch/arm/plat-s3c24xx/adc.c
++++ b/arch/arm/plat-s3c24xx/adc.c
+@@ -58,6 +58,7 @@ struct adc_device {
+ 	void __iomem		*regs;
+ 
+ 	unsigned int		 prescale;
++	unsigned int		 delay;
+ 
+ 	int			 irq;
+ };
+@@ -264,6 +265,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
+ 
+ 	adc->pdev = pdev;
+ 	adc->prescale = S3C2410_ADCCON_PRSCVL(49);
++	adc->delay = 0x2710;
+ 
+ 	adc->irq = platform_get_irq(pdev, 1);
+ 	if (adc->irq <= 0) {
+@@ -303,6 +305,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
+ 
+ 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
+ 	       adc->regs + S3C2410_ADCCON);
++	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
+ 
+ 	dev_info(dev, "attached adc driver\n");
+ 
+@@ -358,6 +361,7 @@ static int s3c_adc_resume(struct platform_device *pdev)
+ 
+ 	writel(adc->prescale | S3C2410_ADCCON_PRSCEN,
+ 	       adc->regs + S3C2410_ADCCON);
++	writel(adc->delay, adc->regs + S3C2410_ADCDLY);
+ 
+ 	return 0;
+ }

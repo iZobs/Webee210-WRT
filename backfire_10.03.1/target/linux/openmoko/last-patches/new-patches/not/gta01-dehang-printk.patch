@@ -1,0 +1,34 @@
+This is a temporary work-around Mike Westerhof for this bug:
+http://bugzilla.openmoko.org/cgi-bin/bugzilla/show_bug.cgi?id=788
+
+See also
+http://lists.openmoko.org/pipermail/openmoko-kernel/2008-February/000804.html
+
+(It's the 2nd option.)
+
+We may settle on a different solution in the future, depending on
+feedback from upstream.
+
+Index: linux-2.6.24/drivers/serial/s3c2410.c
+===================================================================
+--- linux-2.6.24.orig/drivers/serial/s3c2410.c
++++ linux-2.6.24/drivers/serial/s3c2410.c
+@@ -1717,9 +1717,18 @@
+ s3c24xx_serial_console_putchar(struct uart_port *port, int ch)
+ {
+ 	unsigned int ufcon = rd_regl(cons_uart, S3C2410_UFCON);
++	unsigned int umcon = rd_regl(cons_uart, S3C2410_UMCON);
++
++	/* If auto HW flow control enabled, temporarily turn it off */
++	if (umcon & S3C2410_UMCOM_AFC)
++		wr_regl(port, S3C2410_UMCON, (umcon & !S3C2410_UMCOM_AFC));
++
+ 	while (!s3c24xx_serial_console_txrdy(port, ufcon))
+ 		barrier();
+ 	wr_regb(cons_uart, S3C2410_UTXH, ch);
++
++	if (umcon & S3C2410_UMCOM_AFC)
++		wr_regl(port, S3C2410_UMCON, umcon);
+ }
+ 
+ static void

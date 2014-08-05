@@ -1,0 +1,430 @@
+s3c2410_ts: cleanups
+
+From: Nelson Castillo <arhuaco@freaks-unidos.net>
+
+General cleanups. Now it passes checkpatch.pl.
+
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+ drivers/input/touchscreen/s3c2410_ts.c |  192 ++++++++++++++++----------------
+ 1 files changed, 94 insertions(+), 98 deletions(-)
+
+
+diff --git a/drivers/input/touchscreen/s3c2410_ts.c b/drivers/input/touchscreen/s3c2410_ts.c
+index 760b13c..d78f466 100644
+--- a/drivers/input/touchscreen/s3c2410_ts.c
++++ b/drivers/input/touchscreen/s3c2410_ts.c
+@@ -19,7 +19,7 @@
+  * ChangeLog
+  *
+  * 2004-09-05: Herbert Pötzl <herbert@13thfloor.at>
+- *      - added clock (de-)allocation code
++ *      - Added clock (de-)allocation code
+  *
+  * 2005-03-06: Arnaud Patard <arnaud.patard@rtp-net.org>
+  *      - h1940_ -> s3c2410 (this driver is now also used on the n30
+@@ -38,11 +38,15 @@
+  *      - Add proper support for S32440
+  *
+  * 2008-06-23: Andy Green <andy@openmoko.com>
+- *      - removed averaging system
+- *      - added generic Touchscreen filter stuff
++ *      - Removed averaging system
++ *      - Added generic Touchscreen filter stuff
+  *
+  * 2008-11-27: Nelson Castillo <arhuaco@freaks-unidos.net>
+- *      - improve interrupt handling
++ *      - Improve interrupt handling
++ *
++ * 2009-04-09: Nelson Castillo <arhuaco@freaks-unidos.net>
++ *      - Use s3c-adc API (Vasily Khoruzhick <anarsoul@gmail.com> provided
++ *        a working example for a simpler version of this driver).
+  */
+ 
+ #include <linux/errno.h>
+@@ -57,7 +61,7 @@
+ #include <linux/delay.h>
+ #include <linux/platform_device.h>
+ #include <linux/clk.h>
+-#include <asm/io.h>
++#include <linux/io.h>
+ #include <asm/irq.h>
+ 
+ #include <mach/regs-gpio.h>
+@@ -71,15 +75,20 @@
+ /* For ts.dev.id.version */
+ #define S3C2410TSVERSION	0x0101
+ 
+-#define TSC_SLEEP  (S3C2410_ADCTSC_PULL_UP_DISABLE | S3C2410_ADCTSC_XY_PST(0))
++#define WAIT4INT(x)		(((x)<<8) | \
++				S3C2410_ADCTSC_YM_SEN | \
++				S3C2410_ADCTSC_YP_SEN | \
++				S3C2410_ADCTSC_XP_SEN | \
++				S3C2410_ADCTSC_XY_PST(3))
+ 
+-#define WAIT4INT(x)  (((x)<<8) | \
+-		     S3C2410_ADCTSC_YM_SEN | \
+-		     S3C2410_ADCTSC_YP_SEN | \
+-		     S3C2410_ADCTSC_XP_SEN | \
+-		     S3C2410_ADCTSC_XY_PST(3))
++#define TSPRINTK(fmt, args...) \
++	printk(KERN_DEBUG "%s: " fmt, __func__ , ## args)
++#ifdef CONFIG_TOUCHSCREEN_S3C2410_DEBUG
++#	define DPRINTK TSPRINTK
++#else
++#	define DPRINTK(fmt, args...)
++#endif
+ 
+-#define DEBUG_LVL    KERN_DEBUG
+ 
+ MODULE_AUTHOR("Arnaud Patard <arnaud.patard@rtp-net.org>");
+ MODULE_DESCRIPTION("s3c2410 touchscreen driver");
+@@ -92,24 +101,22 @@ MODULE_LICENSE("GPL");
+ static char *s3c2410ts_name = "s3c2410 TouchScreen";
+ 
+ #define TS_RELEASE_TIMEOUT (HZ >> 7 ? HZ >> 7 : 1) /* 8ms (5ms if HZ is 200) */
+-#define TS_EVENT_FIFO_SIZE (2 << 6) /* must be a power of 2 */
+-
+-#define TS_STATE_STANDBY 0 /* initial state */
+-#define TS_STATE_PRESSED 1
+-#define TS_STATE_RELEASE_PENDING 2
+-#define TS_STATE_RELEASE 3
++#define TS_EVENT_FIFO_SIZE (2 << 6) /* Must be a power of 2. */
+ 
+ /*
+  * Per-touchscreen data.
+  */
+ 
++enum	ts_state {TS_STATE_STANDBY, TS_STATE_PRESSED, TS_STATE_RELEASE_PENDING,
++		  TS_STATE_RELEASE};
++
+ struct s3c2410ts {
+ 	struct input_dev *dev;
+-	struct s3c_adc_client *adc_client;
+ 	struct ts_filter_chain *chain;
++	enum ts_state state;
+ 	int is_down;
+-	int state;
+ 	struct kfifo *event_fifo;
++	struct s3c_adc_client *adc_client;
+ 	unsigned adc_selected;
+ };
+ 
+@@ -129,6 +136,10 @@ static inline void s3c2410_ts_connect(void)
+ 	s3c2410_gpio_cfgpin(S3C2410_GPG15, S3C2410_GPG15_nYPON);
+ }
+ 
++/*
++ * Code that starts ADC conversions.
++ */
++
+ static void ts_adc_timer_f(unsigned long data);
+ static struct timer_list ts_adc_timer = TIMER_INITIALIZER(ts_adc_timer_f, 0, 0);
+ 
+@@ -138,11 +149,6 @@ static void ts_adc_timer_f(unsigned long data)
+ 		mod_timer(&ts_adc_timer, jiffies + 1);
+ }
+ 
+-void adc_selected_f(unsigned selected)
+-{
+-	ts.adc_selected = selected;
+-}
+-
+ static void s3c2410_ts_start_adc_conversion(void)
+ {
+ 	if (ts.adc_selected)
+@@ -151,6 +157,12 @@ static void s3c2410_ts_start_adc_conversion(void)
+ 		ts_adc_timer_f(0);
+ }
+ 
++/* Callback for the s3c-adc API. */
++void adc_selected_f(unsigned selected)
++{
++	ts.adc_selected = selected;
++}
++
+ /*
+  * Just send the input events.
+  */
+@@ -172,18 +184,14 @@ static void ts_input_report(int event, int coords[])
+ 		input_report_key(ts.dev, BTN_TOUCH, 1);
+ 		input_report_abs(ts.dev, ABS_PRESSURE, 1);
+ 
+-#ifdef CONFIG_TOUCHSCREEN_S3C2410_DEBUG
+-		printk(DEBUG_LVL "T:%06d %6s (X:%03d, Y:%03d)\n",
+-		       (int)tv.tv_usec, s[event], coords[0], coords[1]);
+-#endif
++		DPRINTK("T:%06d %6s (X:%03d, Y:%03d)\n",
++			(int)tv.tv_usec, s[event], coords[0], coords[1]);
+ 	} else {
+ 		input_report_key(ts.dev, BTN_TOUCH, 0);
+ 		input_report_abs(ts.dev, ABS_PRESSURE, 0);
+ 
+-#ifdef CONFIG_TOUCHSCREEN_S3C2410_DEBUG
+-		printk(DEBUG_LVL "T:%06d %6s\n",
+-		       (int)tv.tv_usec, s[event]);
+-#endif
++		DPRINTK("T:%06d %6s\n",
++			(int)tv.tv_usec, s[event]);
+ 	}
+ 
+ 	input_sync(ts.dev);
+@@ -210,7 +218,7 @@ static void event_send_timer_f(unsigned long data)
+ 		switch (event_type) {
+ 		case 'D':
+ 			if (ts.state == TS_STATE_RELEASE_PENDING)
+-				/* Ignore short UP event */
++				/* Ignore short UP event. */
+ 				ts.state = TS_STATE_PRESSED;
+ 			break;
+ 
+@@ -219,21 +227,21 @@ static void event_send_timer_f(unsigned long data)
+ 			break;
+ 
+ 		case 'P':
+-			if (ts.is_down) /* stylus_action needs a conversion */
++			if (ts.is_down) /* Stylus_action needs a conversion. */
+ 				s3c2410_ts_start_adc_conversion();
+ 
+ 			if (unlikely(__kfifo_get(ts.event_fifo,
+ 						 (unsigned char *)buf,
+ 						 sizeof(int) * 2)
+-				     != sizeof(int) * 2))
+-				goto ts_exit_error;
++				     != sizeof(int) * 2)) {
++				/* This will only happen if we have a bug. */
++				TSPRINTK("Invalid packet\n");
++				return;
++			}
+ 
+ 			ts_input_report(IE_DOWN, buf);
+ 			ts.state = TS_STATE_PRESSED;
+ 			break;
+-
+-		default:
+-			goto ts_exit_error;
+ 		}
+ 
+ 		noop_counter = 0;
+@@ -254,11 +262,6 @@ static void event_send_timer_f(unsigned long data)
+ 	} else {
+ 		mod_timer(&event_send_timer, jiffies + TS_RELEASE_TIMEOUT);
+ 	}
+-
+-	return;
+-
+-ts_exit_error: /* should not happen unless we have a bug */
+-	printk(KERN_ERR __FILE__ ": event_send_timer_f failed\n");
+ }
+ 
+ /*
+@@ -271,22 +274,23 @@ static irqreturn_t stylus_updown(int irq, void *dev_id)
+ 	unsigned long data1;
+ 	int event_type;
+ 
+-	data0 = readl(base_addr+S3C2410_ADCDAT0);
+-	data1 = readl(base_addr+S3C2410_ADCDAT1);
++	data0 = readl(base_addr + S3C2410_ADCDAT0);
++	data1 = readl(base_addr + S3C2410_ADCDAT1);
+ 
+-	ts.is_down = (!(data0 & S3C2410_ADCDAT0_UPDOWN)) &&
+-					    (!(data1 & S3C2410_ADCDAT0_UPDOWN));
++	ts.is_down = !(data0 & S3C2410_ADCDAT0_UPDOWN) &&
++		     !(data1 & S3C2410_ADCDAT0_UPDOWN);
+ 
+ 	event_type = ts.is_down ? 'D' : 'U';
+ 
+ 	if (unlikely(__kfifo_put(ts.event_fifo, (unsigned char *)&event_type,
+-		     sizeof(int)) != sizeof(int))) /* should not happen */
+-		printk(KERN_ERR __FILE__": stylus_updown lost event!\n");
++		     sizeof(int)) != sizeof(int)))
++		/* Only happens if we have a bug. */
++		TSPRINTK("FIFO full\n");
+ 
+ 	if (ts.is_down)
+ 		s3c2410_ts_start_adc_conversion();
+ 	else
+-		writel(WAIT4INT(0), base_addr+S3C2410_ADCTSC);
++		writel(WAIT4INT(0), base_addr + S3C2410_ADCTSC);
+ 
+ 	mod_timer(&event_send_timer, jiffies + 1);
+ 
+@@ -317,11 +321,9 @@ static void stylus_adc_action(unsigned p0, unsigned p1, unsigned *conv_left)
+ 		buf[0] = 'P';
+ 		break;
+ 	default:
+-		printk(KERN_ERR __FILE__
+-		       ":%d Invalid ts_filter_chain_feed return value.\n",
+-		       __LINE__);
++		TSPRINTK("invalid return value\n");
+ 	case -1:
+-		/* Error. Ignore the event. */
++		/* Too much noise. Ignore the event. */
+ 		ts_filter_chain_clear(ts.chain);
+ 		writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+ 		return;
+@@ -329,7 +331,8 @@ static void stylus_adc_action(unsigned p0, unsigned p1, unsigned *conv_left)
+ 
+ 	if (unlikely(__kfifo_put(ts.event_fifo, (unsigned char *)buf,
+ 		     sizeof(int) * 3) != sizeof(int) * 3))
+-		printk(KERN_ERR __FILE__":stylus_action bug.\n");
++		/* This will only happen if we have a bug. */
++		TSPRINTK("FIFO full\n");
+ 
+ 	writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+ 	mod_timer(&event_send_timer, jiffies + 1);
+@@ -352,24 +355,18 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 
+ 	info = (struct s3c2410_ts_mach_info *)pdev->dev.platform_data;
+ 
+-	if (!info)
+-	{
+-		dev_err(&pdev->dev, "Hm... too bad: no platform data for ts\n");
++	if (!info) {
++		dev_err(&pdev->dev, "No platform data\n");
+ 		return -EINVAL;
+ 	}
+ 
+-#ifdef CONFIG_TOUCHSCREEN_S3C2410_DEBUG
+-	printk(DEBUG_LVL "Entering s3c2410ts_init\n");
+-#endif
+-
+-	base_addr = ioremap(S3C2410_PA_ADC,0x20);
++	base_addr = ioremap(S3C2410_PA_ADC, 0x20);
+ 	if (base_addr == NULL) {
+ 		dev_err(&pdev->dev, "Failed to remap register block\n");
+ 		ret = -ENOMEM;
+ 		goto bail0;
+ 	}
+ 
+-
+ 	/* If we acutally are a S3C2410: Configure GPIOs */
+ 	if (!strcmp(pdev->name, "s3c2410-ts"))
+ 		s3c2410_ts_connect();
+@@ -416,7 +413,7 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 		goto bail2;
+ 	}
+ 
+-	/* create the filter chain set up for the 2 coordinates we produce */
++	/* Create the filter chain set up for the 2 coordinates we produce. */
+ 	ts.chain = ts_filter_chain_create(pdev, info->filter_config, 2);
+ 
+ 	if (IS_ERR(ts.chain))
+@@ -430,26 +427,26 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 		dev_err(&pdev->dev, "Could not allocate ts IRQ_TC !\n");
+ 		iounmap(base_addr);
+ 		ret = -EIO;
+-		goto bail4;
++		goto bail3;
+ 	}
+ 
+ 	dev_info(&pdev->dev, "Successfully loaded\n");
+ 
+-	/* All went ok, so register to the input system */
++	/* All went ok. Register to the input system. */
+ 	rc = input_register_device(ts.dev);
+ 	if (rc) {
+ 		dev_info(&pdev->dev, "Could not register input device\n");
+ 		ret = -EIO;
+-		goto bail5;
++		goto bail4;
+ 	}
+ 
+ 	return 0;
+ 
+-bail5:
++bail4:
+ 	free_irq(IRQ_TC, ts.dev);
+ 	iounmap(base_addr);
+ 	disable_irq(IRQ_TC);
+-bail4:
++bail3:
+ 	ts_filter_chain_destroy(ts.chain);
+ 	kfifo_free(ts.event_fifo);
+ bail2:
+@@ -464,7 +461,7 @@ bail0:
+ static int s3c2410ts_remove(struct platform_device *pdev)
+ {
+ 	disable_irq(IRQ_TC);
+-	free_irq(IRQ_TC,ts.dev);
++	free_irq(IRQ_TC, ts.dev);
+ 
+ 	s3c_adc_release(ts.adc_client);
+ 	input_unregister_device(ts.dev);
+@@ -478,12 +475,15 @@ static int s3c2410ts_remove(struct platform_device *pdev)
+ }
+ 
+ #ifdef CONFIG_PM
++
++#define TSC_SLEEP	(S3C2410_ADCTSC_PULL_UP_DISABLE | \
++			 S3C2410_ADCTSC_XY_PST(0))
++
+ static int s3c2410ts_suspend(struct platform_device *pdev, pm_message_t state)
+ {
+-	writel(TSC_SLEEP, base_addr+S3C2410_ADCTSC);
+-	writel(readl(base_addr+S3C2410_ADCCON) | S3C2410_ADCCON_STDBM,
+-	       base_addr+S3C2410_ADCCON);
+-
++	writel(TSC_SLEEP, base_addr + S3C2410_ADCTSC);
++	writel(readl(base_addr + S3C2410_ADCCON) | S3C2410_ADCCON_STDBM,
++	       base_addr + S3C2410_ADCCON);
+ 	disable_irq(IRQ_TC);
+ 
+ 	return 0;
+@@ -492,10 +492,8 @@ static int s3c2410ts_suspend(struct platform_device *pdev, pm_message_t state)
+ static int s3c2410ts_resume(struct platform_device *pdev)
+ {
+ 	ts_filter_chain_clear(ts.chain);
+-
+ 	enable_irq(IRQ_TC);
+-
+-	writel(WAIT4INT(0), base_addr+S3C2410_ADCTSC);
++	writel(WAIT4INT(0), base_addr + S3C2410_ADCTSC);
+ 
+ 	return 0;
+ }
+@@ -506,27 +504,25 @@ static int s3c2410ts_resume(struct platform_device *pdev)
+ #endif
+ 
+ static struct platform_driver s3c2410ts_driver = {
+-       .driver         = {
+-	       .name   = "s3c2410-ts",
+-	       .owner  = THIS_MODULE,
+-       },
+-       .probe          = s3c2410ts_probe,
+-       .remove         = s3c2410ts_remove,
+-       .suspend        = s3c2410ts_suspend,
+-       .resume         = s3c2410ts_resume,
+-
++	.driver = {
++		.name	= "s3c2410-ts",
++		.owner	= THIS_MODULE,
++	},
++	.probe		= s3c2410ts_probe,
++	.remove		= s3c2410ts_remove,
++	.suspend	= s3c2410ts_suspend,
++	.resume		= s3c2410ts_resume,
+ };
+ 
+ static struct platform_driver s3c2440ts_driver = {
+-       .driver         = {
+-	       .name   = "s3c2440-ts",
+-	       .owner  = THIS_MODULE,
+-       },
+-       .probe          = s3c2410ts_probe,
+-       .remove         = s3c2410ts_remove,
+-       .suspend        = s3c2410ts_suspend,
+-       .resume         = s3c2410ts_resume,
+-
++	.driver = {
++		.name	= "s3c2440-ts",
++		.owner	= THIS_MODULE,
++	},
++	.probe		= s3c2410ts_probe,
++	.remove		= s3c2410ts_remove,
++	.suspend	= s3c2410ts_suspend,
++	.resume		= s3c2410ts_resume,
+ };
+ 
+ static int __init s3c2410ts_init(void)

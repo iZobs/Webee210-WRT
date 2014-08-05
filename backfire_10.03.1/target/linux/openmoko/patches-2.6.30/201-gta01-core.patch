@@ -1,0 +1,29 @@
+--- linux-2.6.32.orig/arch/arm/mach-s3c2410/Kconfig
++++ linux-2.6.32/arch/arm/mach-s3c2410/Kconfig
+@@ -131,4 +131,16 @@
+ 	help
+ 	   Say Y here if you are using the Armzone QT2410
+ 
++config MACH_NEO1973_GTA01
++	bool "FIC Neo1973 GSM Phone (GTA01 Hardware)"
++	select CPU_S3C2410
++	select MACH_NEO1973
++	select I2C
++	select S3C24XX_ADC
++	select S3C_DEV_USB_HOST
++	select MFD_PCF50606
++	select PCF50606_ADC
++	help
++	   Say Y here if you are using the FIC Neo1973 GSM Phone
++
+ endmenu
+--- linux-2.6.32.orig/arch/arm/mach-s3c2410/Makefile
++++ linux-2.6.32/arch/arm/mach-s3c2410/Makefile
+@@ -29,6 +29,7 @@ 
+ obj-$(CONFIG_MACH_TCT_HAMMER)	+= mach-tct_hammer.o
+ obj-$(CONFIG_MACH_VR1000)	+= mach-vr1000.o usb-simtec.o
+ obj-$(CONFIG_MACH_QT2410)	+= mach-qt2410.o
++obj-$(CONFIG_MACH_NEO1973_GTA01)+= mach-gta01.o
+ 
+ # Common bits of machine support
+ 

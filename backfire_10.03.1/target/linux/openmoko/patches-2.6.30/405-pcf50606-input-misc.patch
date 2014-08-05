@@ -1,0 +1,178 @@
+--- linux-2.6.32/arch/arm/mach-s3c2410/Kconfig	2013-01-11 09:20:53.341456500 +0800
++++ linux-2.6.32/arch/arm/mach-s3c2410/Kconfig	2013-01-11 09:24:03.105456562 +0800
+@@ -144,6 +144,8 @@
+ 	select RTC_DRV_PCF50606
+ 	select REGULATOR_PCF50606
+ 	select CHARGER_PCF50606
++	select INPUT_PCF50606_PMU
++	select POWER_SUPPLY
+ 	help
+ 	   Say Y here if you are using the FIC Neo1973 GSM Phone
+ 
+--- linux-2.6.30.10/drivers/input/misc/Kconfig	2009-12-04 14:00:07.000000000 +0800
++++ linux-2.6.31/drivers/input/misc/Kconfig	2013-01-08 16:32:35.152267999 +0800
+@@ -236,6 +236,13 @@
+ 	 Say Y to include support for delivering  PMU events via  input
+ 	 layer on NXP PCF50633.
+ 
++config INPUT_PCF50606_PMU
++	tristate "PCF50606 PMU events"
++	depends on MFD_PCF50606
++	help
++	  Say Y to include support for delivering  PMU events via  input
++	  layer on NXP PCF50606.
++
+ config INPUT_GPIO_ROTARY_ENCODER
+ 	tristate "Rotary encoders connected to GPIO pins"
+ 	depends on GPIOLIB && GENERIC_GPIO
+--- linux-2.6.30.10/drivers/input/misc/Makefile	2009-12-04 14:00:07.000000000 +0800
++++ linux-2.6.31/drivers/input/misc/Makefile	2013-01-08 16:32:35.152267999 +0800
+@@ -15,6 +15,7 @@
+ obj-$(CONFIG_INPUT_KEYSPAN_REMOTE)	+= keyspan_remote.o
+ obj-$(CONFIG_INPUT_M68K_BEEP)		+= m68kspkr.o
+ obj-$(CONFIG_INPUT_PCF50633_PMU)	+= pcf50633-input.o
++obj-$(CONFIG_INPUT_PCF50606_PMU)	+= pcf50606-input.o
+ obj-$(CONFIG_INPUT_PCSPKR)		+= pcspkr.o
+ obj-$(CONFIG_INPUT_POWERMATE)		+= powermate.o
+ obj-$(CONFIG_INPUT_RB532_BUTTON)	+= rb532_button.o
+--- linux-2.6.30.10/drivers/input/misc/pcf50606-input.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.31/drivers/input/misc/pcf50606-input.c	2013-01-08 16:32:35.152267999 +0800
+@@ -0,0 +1,138 @@
++/* Philips PCF50606 Input Driver
++ *
++ * (C) 2006-2008 by Openmoko, Inc.
++ * Author: Balaji Rao <balajirrao@openmoko.org>
++ * All rights reserved.
++ *
++ * Broken down from monstrous PCF50606 driver mainly by
++ * Harald Welte, Matt Hsu, Andy Green and Werner Almesberger
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of
++ * the License, or (at your option) any later version.
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/device.h>
++#include <linux/platform_device.h>
++#include <linux/input.h>
++
++#include <linux/mfd/pcf50606/core.h>
++
++#define PCF50606_OOCS_ONKEY		0x01
++#define PCF50606_OOCS_EXTON	 	0x02
++
++#define PCF50606_OOCC2_ONKEYDB_NONE	0x00
++#define PCF50606_OOCC2_ONKEYDB_14ms	0x01
++#define PCF50606_OOCC2_ONKEYDB_62ms	0x02
++#define PCF50606_OOCC2_ONKEYDB_500ms	0x03
++#define PCF50606_OOCC2_EXTONDB_NONE	0x00
++#define PCF50606_OOCC2_EXTONDB_14ms	0x04
++#define PCF50606_OOCC2_EXTONDB_62ms	0x08
++#define PCF50606_OOCC2_EXTONDB_500ms	0x0c
++
++#define PCF50606_REG_OOCS 	0x01
++
++struct pcf50606_input {
++	struct pcf50606 *pcf;
++	struct input_dev *input_dev;
++};
++
++static void
++pcf50606_input_irq(int irq, void *data)
++{
++	struct pcf50606_input *input;
++	int onkey_released;
++
++	input = data;
++	onkey_released = pcf50606_reg_read(input->pcf, PCF50606_REG_OOCS) &
++						PCF50606_OOCS_ONKEY;
++
++	if (irq == PCF50606_IRQ_ONKEYF && !onkey_released)
++		input_report_key(input->input_dev, KEY_POWER, 1);
++	else if (irq == PCF50606_IRQ_ONKEYR && onkey_released)
++		input_report_key(input->input_dev, KEY_POWER, 0);
++
++	input_sync(input->input_dev);
++}
++
++static int __devinit pcf50606_input_probe(struct platform_device *pdev)
++{
++	struct pcf50606_input *input;
++	struct input_dev *input_dev;
++	int ret;
++
++	input = kzalloc(sizeof(*input), GFP_KERNEL);
++	if (!input)
++		return -ENOMEM;
++
++	input_dev = input_allocate_device();
++	if (!input_dev) {
++		kfree(input);
++		return -ENOMEM;
++	}
++
++	platform_set_drvdata(pdev, input);
++	input->pcf = dev_to_pcf50606(pdev->dev.parent);
++	input->input_dev = input_dev;
++
++	input_dev->name = "PCF50606 PMU events";
++	input_dev->id.bustype = BUS_I2C;
++	input_dev->evbit[0] = BIT(EV_KEY) | BIT(EV_PWR);
++	set_bit(KEY_POWER, input_dev->keybit);
++
++	ret = input_register_device(input_dev);
++	if (ret) {
++		input_free_device(input_dev);
++		kfree(input);
++		return ret;
++	}
++	pcf50606_register_irq(input->pcf, PCF50606_IRQ_ONKEYR,
++				pcf50606_input_irq, input);
++	pcf50606_register_irq(input->pcf, PCF50606_IRQ_ONKEYF,
++				pcf50606_input_irq, input);
++
++	return 0;
++}
++
++static int __devexit pcf50606_input_remove(struct platform_device *pdev)
++{
++	struct pcf50606_input *input  = platform_get_drvdata(pdev);
++
++	input_unregister_device(input->input_dev);
++	pcf50606_free_irq(input->pcf, PCF50606_IRQ_ONKEYR);
++	pcf50606_free_irq(input->pcf, PCF50606_IRQ_ONKEYF);
++
++	kfree(input);
++
++	return 0;
++}
++
++static struct platform_driver pcf50606_input_driver = {
++	.driver = {
++		.name = "pcf50606-input",
++	},
++	.probe = pcf50606_input_probe,
++	.remove = __devexit_p(pcf50606_input_remove),
++};
++
++static int __init pcf50606_input_init(void)
++{
++	return platform_driver_register(&pcf50606_input_driver);
++}
++module_init(pcf50606_input_init);
++
++static void __exit pcf50606_input_exit(void)
++{
++	platform_driver_unregister(&pcf50606_input_driver);
++}
++module_exit(pcf50606_input_exit);
++
++MODULE_AUTHOR("Balaji Rao <balajirrao@openmoko.org>");
++MODULE_DESCRIPTION("PCF50606 input driver");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:pcf50606-input");

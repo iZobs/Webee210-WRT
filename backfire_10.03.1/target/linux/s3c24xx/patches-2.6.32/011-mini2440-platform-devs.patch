@@ -1,0 +1,724 @@
+diff -Nur linux-2.6.32.2/drivers/char/Kconfig linux-2.6.32.2-mini2440/drivers/char/Kconfig
+--- linux-2.6.32.2/drivers/char/Kconfig	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/Kconfig	2009-12-31 17:09:26.000000000 +0800
+@@ -97,6 +97,43 @@
+ 	  kind of kernel debugging operations.
+ 	  When in doubt, say "N".
+ 
++config MINI2440_HELLO_MODULE
++	tristate "Mini2440 module sample"
++	depends on MACH_MINI2440
++	default m if MACH_MINI2440
++	help
++	  Mini2440 module sample.
++
++config LEDS_MINI2440
++	tristate "LED Support for Mini2440 GPIO LEDs"
++	depends on MACH_MINI2440
++	default y if MACH_MINI2440
++	help
++	  This option enables support for LEDs connected to GPIO lines
++	  on Mini2440 boards.
++
++config MINI2440_BUTTONS
++	tristate "Buttons driver for FriendlyARM Mini2440 development boards"
++	depends on MACH_MINI2440
++	default y if MACH_MINI2440
++	help
++	  this is buttons driver for FriendlyARM Mini2440 development boards
++
++config MINI2440_BUZZER
++	tristate "Buzzer driver for FriendlyARM Mini2440 development boards"
++	depends on MACH_MINI2440
++	default y if MACH_MINI2440
++	help
++	  this is buzzer driver for FriendlyARM Mini2440 development boards
++
++config MINI2440_ADC
++	bool "ADC driver for FriendlyARM Mini2440 development boards"
++	depends on MACH_MINI2440
++	default y if MACH_MINI2440
++	help
++	  this is ADC driver for FriendlyARM Mini2440 development boards
++	  Notes: the touch-screen-driver required this option
++
+ config BFIN_JTAG_COMM
+ 	tristate "Blackfin JTAG Communication"
+ 	depends on BLACKFIN
+diff -Nur linux-2.6.32.2/drivers/char/Makefile linux-2.6.32.2-mini2440/drivers/char/Makefile
+--- linux-2.6.32.2/drivers/char/Makefile	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/Makefile	2009-12-31 15:07:05.000000000 +0800
+@@ -113,6 +113,12 @@
+ obj-$(CONFIG_JS_RTC)		+= js-rtc.o
+ js-rtc-y = rtc.o
+ 
++obj-$(CONFIG_LEDS_MINI2440)	+= mini2440_leds.o
++obj-$(CONFIG_MINI2440_HELLO_MODULE) += mini2440_hello_module.o
++obj-$(CONFIG_MINI2440_BUTTONS)	+= mini2440_buttons.o
++obj-$(CONFIG_MINI2440_BUZZER)	+= mini2440_pwm.o
++obj-$(CONFIG_MINI2440_ADC)	+= mini2440_adc.o
++
+ # Files generated that shall be removed upon make clean
+ clean-files := consolemap_deftbl.c defkeymap.c
+ 
+diff -Nur linux-2.6.32.2/drivers/char/mini2440_adc.c linux-2.6.32.2-mini2440/drivers/char/mini2440_adc.c
+--- linux-2.6.32.2/drivers/char/mini2440_adc.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/mini2440_adc.c	2010-01-06 15:29:33.000000000 +0800
+@@ -0,0 +1,198 @@
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/input.h>
++#include <linux/init.h>
++#include <linux/serio.h>
++#include <linux/delay.h>
++#include <linux/clk.h>
++#include <linux/wait.h>
++#include <linux/sched.h>
++#include <asm/io.h>
++#include <asm/irq.h>
++#include <asm/uaccess.h>
++#include <mach/regs-clock.h>
++#include <plat/regs-timer.h>
++	 
++#include <plat/regs-adc.h>
++#include <mach/regs-gpio.h>
++#include <linux/cdev.h>
++#include <linux/miscdevice.h>
++
++#include "s3c24xx-adc.h"
++
++#undef DEBUG
++//#define DEBUG
++#ifdef DEBUG
++#define DPRINTK(x...) {printk(__FUNCTION__"(%d): ",__LINE__);printk(##x);}
++#else
++#define DPRINTK(x...) (void)(0)
++#endif
++
++#define DEVICE_NAME	"adc"
++
++static void __iomem *base_addr;
++
++typedef struct {
++	wait_queue_head_t wait;
++	int channel;
++	int prescale;
++}ADC_DEV;
++
++extern struct semaphore ADC_LOCK; //DECLARE_MUTEX(ADC_LOCK);
++static int OwnADC = 0;
++
++static ADC_DEV adcdev;
++static volatile int ev_adc = 0;
++static int adc_data;
++
++static struct clk	*adc_clock;
++
++#define ADCCON      (*(volatile unsigned long *)(base_addr + S3C2410_ADCCON))	//ADC control
++#define ADCTSC      (*(volatile unsigned long *)(base_addr + S3C2410_ADCTSC))	//ADC touch screen control
++#define ADCDLY      (*(volatile unsigned long *)(base_addr + S3C2410_ADCDLY))	//ADC start or Interval Delay
++#define ADCDAT0     (*(volatile unsigned long *)(base_addr + S3C2410_ADCDAT0))	//ADC conversion data 0
++#define ADCDAT1     (*(volatile unsigned long *)(base_addr + S3C2410_ADCDAT1))	//ADC conversion data 1
++#define ADCUPDN     (*(volatile unsigned long *)(base_addr + 0x14))	//Stylus Up/Down interrupt status
++
++#define PRESCALE_DIS        (0 << 14)
++#define PRESCALE_EN         (1 << 14)
++#define PRSCVL(x)           ((x) << 6)
++#define ADC_INPUT(x)        ((x) << 3)
++#define ADC_START           (1 << 0)
++#define ADC_ENDCVT          (1 << 15)
++
++#define START_ADC_AIN(ch, prescale) \
++	do{ \
++		ADCCON = PRESCALE_EN | PRSCVL(prescale) | ADC_INPUT((ch)) ; \
++		ADCCON |= ADC_START; \
++	}while(0)
++
++
++static irqreturn_t adcdone_int_handler(int irq, void *dev_id)
++{
++	if (OwnADC) {
++		adc_data = ADCDAT0 & 0x3ff;
++
++		ev_adc = 1;
++		wake_up_interruptible(&adcdev.wait);
++	}
++
++	return IRQ_HANDLED;
++}
++
++static ssize_t s3c2410_adc_read(struct file *filp, char *buffer, size_t count, loff_t *ppos)
++{
++	char str[20];
++	int value;
++	size_t len;
++	if (down_trylock(&ADC_LOCK) == 0) {
++		OwnADC = 1;
++		START_ADC_AIN(adcdev.channel, adcdev.prescale);
++		wait_event_interruptible(adcdev.wait, ev_adc);
++
++		ev_adc = 0;
++
++		DPRINTK("AIN[%d] = 0x%04x, %d\n", adcdev.channel, adc_data, ADCCON & 0x80 ? 1:0);
++
++		value = adc_data;
++
++		OwnADC = 0;
++		up(&ADC_LOCK);
++	} else {
++		value = -1;
++	}
++
++	len = sprintf(str, "%d\n", value);
++	if (count >= len) {
++		int r = copy_to_user(buffer, str, len);
++		return r ? r : len;
++	} else {
++		return -EINVAL;
++	}
++}
++
++static int s3c2410_adc_open(struct inode *inode, struct file *filp)
++{
++	init_waitqueue_head(&(adcdev.wait));
++
++	adcdev.channel=0;
++	adcdev.prescale=0xff;
++
++	DPRINTK( "adc opened\n");
++	return 0;
++}
++
++static int s3c2410_adc_release(struct inode *inode, struct file *filp)
++{
++	DPRINTK( "adc closed\n");
++	return 0;
++}
++
++
++static struct file_operations dev_fops = {
++	owner:	THIS_MODULE,
++	open:	s3c2410_adc_open,
++	read:	s3c2410_adc_read,	
++	release:	s3c2410_adc_release,
++};
++
++static struct miscdevice misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = DEVICE_NAME,
++	.fops = &dev_fops,
++};
++
++static int __init dev_init(void)
++{
++	int ret;
++
++	base_addr=ioremap(S3C2410_PA_ADC,0x20);
++	if (base_addr == NULL) {
++		printk(KERN_ERR "Failed to remap register block\n");
++		return -ENOMEM;
++	}
++
++	adc_clock = clk_get(NULL, "adc");
++	if (!adc_clock) {
++		printk(KERN_ERR "failed to get adc clock source\n");
++		return -ENOENT;
++	}
++	clk_enable(adc_clock);
++	
++	/* normal ADC */
++	ADCTSC = 0;
++
++	ret = request_irq(IRQ_ADC, adcdone_int_handler, IRQF_SHARED, DEVICE_NAME, &adcdev);
++	if (ret) {
++		iounmap(base_addr);
++		return ret;
++	}
++
++	ret = misc_register(&misc);
++
++	printk (DEVICE_NAME"\tinitialized\n");
++	return ret;
++}
++
++static void __exit dev_exit(void)
++{
++	free_irq(IRQ_ADC, &adcdev);
++	iounmap(base_addr);
++
++	if (adc_clock) {
++		clk_disable(adc_clock);
++		clk_put(adc_clock);
++		adc_clock = NULL;
++	}
++
++	misc_deregister(&misc);
++}
++
++//EXPORT_SYMBOL(ADC_LOCK);
++module_init(dev_init);
++module_exit(dev_exit);
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("FriendlyARM Inc.");
++
+diff -Nur linux-2.6.32.2/drivers/char/mini2440_buttons.c linux-2.6.32.2-mini2440/drivers/char/mini2440_buttons.c
+--- linux-2.6.32.2/drivers/char/mini2440_buttons.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/mini2440_buttons.c	2009-12-31 16:39:22.000000000 +0800
+@@ -0,0 +1,173 @@
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/delay.h>
++#include <linux/poll.h>
++#include <linux/irq.h>
++#include <asm/irq.h>
++#include <linux/interrupt.h>
++#include <asm/uaccess.h>
++#include <mach/regs-gpio.h>
++#include <mach/hardware.h>
++#include <linux/platform_device.h>
++#include <linux/cdev.h>
++#include <linux/miscdevice.h>
++#include <linux/sched.h>
++#include <linux/gpio.h>
++
++#define DEVICE_NAME     "buttons"
++
++struct button_irq_desc {
++    int irq;
++    int pin;
++    int pin_setting;
++    int number;
++    char *name;	
++};
++
++static struct button_irq_desc button_irqs [] = {
++    {IRQ_EINT8 , S3C2410_GPG(0) ,  S3C2410_GPG0_EINT8  , 0, "KEY0"},
++    {IRQ_EINT11, S3C2410_GPG(3) ,  S3C2410_GPG3_EINT11 , 1, "KEY1"},
++    {IRQ_EINT13, S3C2410_GPG(5) ,  S3C2410_GPG5_EINT13 , 2, "KEY2"},
++    {IRQ_EINT14, S3C2410_GPG(6) ,  S3C2410_GPG6_EINT14 , 3, "KEY3"},
++    {IRQ_EINT15, S3C2410_GPG(7) ,  S3C2410_GPG7_EINT15 , 4, "KEY4"},
++    {IRQ_EINT19, S3C2410_GPG(11),  S3C2410_GPG11_EINT19, 5, "KEY5"},
++};
++static volatile char key_values [] = {'0', '0', '0', '0', '0', '0'};
++
++static DECLARE_WAIT_QUEUE_HEAD(button_waitq);
++
++static volatile int ev_press = 0;
++
++
++static irqreturn_t buttons_interrupt(int irq, void *dev_id)
++{
++    struct button_irq_desc *button_irqs = (struct button_irq_desc *)dev_id;
++    int down;
++
++    // udelay(0);
++    down = !s3c2410_gpio_getpin(button_irqs->pin);
++
++    if (down != (key_values[button_irqs->number] & 1)) { // Changed
++
++	key_values[button_irqs->number] = '0' + down;
++	
++        ev_press = 1;
++        wake_up_interruptible(&button_waitq);
++    }
++    
++    return IRQ_RETVAL(IRQ_HANDLED);
++}
++
++
++static int s3c24xx_buttons_open(struct inode *inode, struct file *file)
++{
++    int i;
++    int err = 0;
++    
++    for (i = 0; i < sizeof(button_irqs)/sizeof(button_irqs[0]); i++) {
++	if (button_irqs[i].irq < 0) {
++		continue;
++	}
++        err = request_irq(button_irqs[i].irq, buttons_interrupt, IRQ_TYPE_EDGE_BOTH, 
++                          button_irqs[i].name, (void *)&button_irqs[i]);
++        if (err)
++            break;
++    }
++
++    if (err) {
++        i--;
++        for (; i >= 0; i--) {
++	    if (button_irqs[i].irq < 0) {
++		continue;
++	    }
++	    disable_irq(button_irqs[i].irq);
++            free_irq(button_irqs[i].irq, (void *)&button_irqs[i]);
++        }
++        return -EBUSY;
++    }
++
++    ev_press = 1;
++    
++    return 0;
++}
++
++
++static int s3c24xx_buttons_close(struct inode *inode, struct file *file)
++{
++    int i;
++    
++    for (i = 0; i < sizeof(button_irqs)/sizeof(button_irqs[0]); i++) {
++	if (button_irqs[i].irq < 0) {
++	    continue;
++	}
++	free_irq(button_irqs[i].irq, (void *)&button_irqs[i]);
++    }
++
++    return 0;
++}
++
++
++static int s3c24xx_buttons_read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
++{
++    unsigned long err;
++
++    if (!ev_press) {
++	if (filp->f_flags & O_NONBLOCK)
++	    return -EAGAIN;
++	else
++	    wait_event_interruptible(button_waitq, ev_press);
++    }
++    
++    ev_press = 0;
++
++    err = copy_to_user(buff, (const void *)key_values, min(sizeof(key_values), count));
++
++    return err ? -EFAULT : min(sizeof(key_values), count);
++}
++
++static unsigned int s3c24xx_buttons_poll( struct file *file, struct poll_table_struct *wait)
++{
++    unsigned int mask = 0;
++    poll_wait(file, &button_waitq, wait);
++    if (ev_press)
++        mask |= POLLIN | POLLRDNORM;
++    return mask;
++}
++
++
++static struct file_operations dev_fops = {
++    .owner   =   THIS_MODULE,
++    .open    =   s3c24xx_buttons_open,
++    .release =   s3c24xx_buttons_close, 
++    .read    =   s3c24xx_buttons_read,
++    .poll    =   s3c24xx_buttons_poll,
++};
++
++static struct miscdevice misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = DEVICE_NAME,
++	.fops = &dev_fops,
++};
++
++static int __init dev_init(void)
++{
++	int ret;
++
++	ret = misc_register(&misc);
++
++	printk (DEVICE_NAME"\tinitialized\n");
++
++	return ret;
++}
++
++static void __exit dev_exit(void)
++{
++	misc_deregister(&misc);
++}
++
++module_init(dev_init);
++module_exit(dev_exit);
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("FriendlyARM Inc.");
+diff -Nur linux-2.6.32.2/drivers/char/mini2440_hello_module.c linux-2.6.32.2-mini2440/drivers/char/mini2440_hello_module.c
+--- linux-2.6.32.2/drivers/char/mini2440_hello_module.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/mini2440_hello_module.c	2009-12-31 16:41:37.000000000 +0800
+@@ -0,0 +1,18 @@
++#include <linux/kernel.h>
++#include <linux/module.h>
++
++
++static int __init mini2440_hello_module_init(void)
++{
++    printk("Hello, Mini2440 module is installed !\n");
++    return 0;
++}
++
++static void __exit mini2440_hello_module_cleanup(void)
++{
++    printk("Good-bye, Mini2440 module was removed!\n");
++}
++
++module_init(mini2440_hello_module_init);
++module_exit(mini2440_hello_module_cleanup);
++MODULE_LICENSE("GPL");
+diff -Nur linux-2.6.32.2/drivers/char/mini2440_leds.c linux-2.6.32.2-mini2440/drivers/char/mini2440_leds.c
+--- linux-2.6.32.2/drivers/char/mini2440_leds.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/mini2440_leds.c	2009-12-31 16:32:20.000000000 +0800
+@@ -0,0 +1,99 @@
++#include <linux/miscdevice.h>
++#include <linux/delay.h>
++#include <asm/irq.h>
++#include <mach/regs-gpio.h>
++#include <mach/hardware.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/mm.h>
++#include <linux/fs.h>
++#include <linux/types.h>
++#include <linux/delay.h>
++#include <linux/moduleparam.h>
++#include <linux/slab.h>
++#include <linux/errno.h>
++#include <linux/ioctl.h>
++#include <linux/cdev.h>
++#include <linux/string.h>
++#include <linux/list.h>
++#include <linux/pci.h>
++#include <linux/gpio.h>
++#include <asm/uaccess.h>
++#include <asm/atomic.h>
++#include <asm/unistd.h>
++
++
++#define DEVICE_NAME "leds"
++
++static unsigned long led_table [] = {
++	S3C2410_GPB(5),
++	S3C2410_GPB(6),
++	S3C2410_GPB(7),
++	S3C2410_GPB(8),
++};
++
++static unsigned int led_cfg_table [] = {
++	S3C2410_GPIO_OUTPUT,
++	S3C2410_GPIO_OUTPUT,
++	S3C2410_GPIO_OUTPUT,
++	S3C2410_GPIO_OUTPUT,
++};
++
++static int sbc2440_leds_ioctl(
++	struct inode *inode, 
++	struct file *file, 
++	unsigned int cmd, 
++	unsigned long arg)
++{
++	switch(cmd) {
++	case 0:
++	case 1:
++		if (arg > 4) {
++			return -EINVAL;
++		}
++		s3c2410_gpio_setpin(led_table[arg], !cmd);
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
++static struct file_operations dev_fops = {
++	.owner	=	THIS_MODULE,
++	.ioctl	=	sbc2440_leds_ioctl,
++};
++
++static struct miscdevice misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = DEVICE_NAME,
++	.fops = &dev_fops,
++};
++
++static int __init dev_init(void)
++{
++	int ret;
++
++	int i;
++	
++	for (i = 0; i < 4; i++) {
++		s3c2410_gpio_cfgpin(led_table[i], led_cfg_table[i]);
++		s3c2410_gpio_setpin(led_table[i], 0);
++	}
++
++	ret = misc_register(&misc);
++
++	printk (DEVICE_NAME"\tinitialized\n");
++
++	return ret;
++}
++
++static void __exit dev_exit(void)
++{
++	misc_deregister(&misc);
++}
++
++module_init(dev_init);
++module_exit(dev_exit);
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("FriendlyARM Inc.");
+diff -Nur linux-2.6.32.2/drivers/char/mini2440_pwm.c linux-2.6.32.2-mini2440/drivers/char/mini2440_pwm.c
+--- linux-2.6.32.2/drivers/char/mini2440_pwm.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2-mini2440/drivers/char/mini2440_pwm.c	2010-01-21 10:36:20.000000000 +0800
+@@ -0,0 +1,152 @@
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/delay.h>
++#include <linux/poll.h>
++#include <linux/interrupt.h>
++#include <linux/gpio.h>
++
++#include <asm/irq.h>
++#include <asm/io.h>
++#include <asm/uaccess.h>
++#include <mach/regs-gpio.h>
++#include <mach/hardware.h>
++#include <plat/regs-timer.h>
++#include <mach/regs-irq.h>
++#include <asm/mach/time.h>
++#include <linux/clk.h>
++#include <linux/cdev.h>
++#include <linux/device.h>
++#include <linux/miscdevice.h>
++
++#define DEVICE_NAME     "pwm"
++
++#define PWM_IOCTL_SET_FREQ		1
++#define PWM_IOCTL_STOP			0
++
++static struct semaphore lock;
++
++/* freq:  pclk/50/16/65536 ~ pclk/50/16 
++  * if pclk = 50MHz, freq is 1Hz to 62500Hz
++  * human ear : 20Hz~ 20000Hz
++  */
++static void PWM_Set_Freq( unsigned long freq )
++{
++	unsigned long tcon;
++	unsigned long tcnt;
++	unsigned long tcfg1;
++	unsigned long tcfg0;
++
++	struct clk *clk_p;
++	unsigned long pclk;
++
++	//set GPB0 as tout0, pwm output
++	s3c2410_gpio_cfgpin(S3C2410_GPB(0), S3C2410_GPB0_TOUT0);
++
++	tcon = __raw_readl(S3C2410_TCON);
++	tcfg1 = __raw_readl(S3C2410_TCFG1);
++	tcfg0 = __raw_readl(S3C2410_TCFG0);
++
++	//prescaler = 50
++	tcfg0 &= ~S3C2410_TCFG_PRESCALER0_MASK;
++	tcfg0 |= (50 - 1); 
++
++	//mux = 1/16
++	tcfg1 &= ~S3C2410_TCFG1_MUX0_MASK;
++	tcfg1 |= S3C2410_TCFG1_MUX0_DIV16;
++
++	__raw_writel(tcfg1, S3C2410_TCFG1);
++	__raw_writel(tcfg0, S3C2410_TCFG0);
++
++	clk_p = clk_get(NULL, "pclk");
++	pclk  = clk_get_rate(clk_p);
++	tcnt  = (pclk/50/16)/freq;
++	
++	__raw_writel(tcnt, S3C2410_TCNTB(0));
++	__raw_writel(tcnt/2, S3C2410_TCMPB(0));
++				
++	tcon &= ~0x1f;
++	tcon |= 0xb;		//disable deadzone, auto-reload, inv-off, update TCNTB0&TCMPB0, start timer 0
++	__raw_writel(tcon, S3C2410_TCON);
++	
++	tcon &= ~2;			//clear manual update bit
++	__raw_writel(tcon, S3C2410_TCON);
++}
++
++static void PWM_Stop(void)
++{
++	s3c2410_gpio_cfgpin(S3C2410_GPB(0), S3C2410_GPIO_OUTPUT);
++	s3c2410_gpio_setpin(S3C2410_GPB(0), 0);
++}
++
++static int s3c24xx_pwm_open(struct inode *inode, struct file *file)
++{
++	if (!down_trylock(&lock))
++		return 0;
++	else
++		return -EBUSY;
++}
++
++
++static int s3c24xx_pwm_close(struct inode *inode, struct file *file)
++{
++	PWM_Stop();
++	up(&lock);
++    return 0;
++}
++
++
++static int s3c24xx_pwm_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
++{
++	//printk("ioctl pwm: %x %lx\n", cmd, arg);
++	switch (cmd) {
++	case PWM_IOCTL_SET_FREQ:
++		if (arg == 0)
++			return -EINVAL;
++		PWM_Set_Freq(arg);
++		break;
++
++	case PWM_IOCTL_STOP:
++		PWM_Stop();
++		break;
++	}
++
++	return 0;
++}
++
++
++static struct file_operations dev_fops = {
++    .owner   =   THIS_MODULE,
++    .open    =   s3c24xx_pwm_open,
++    .release =   s3c24xx_pwm_close, 
++    .ioctl   =   s3c24xx_pwm_ioctl,
++};
++
++static struct miscdevice misc = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = DEVICE_NAME,
++	.fops = &dev_fops,
++};
++
++static int __init dev_init(void)
++{
++	int ret;
++
++	init_MUTEX(&lock);
++	ret = misc_register(&misc);
++
++	printk (DEVICE_NAME"\tinitialized\n");
++    	return ret;
++}
++
++static void __exit dev_exit(void)
++{
++	misc_deregister(&misc);
++}
++
++module_init(dev_init);
++module_exit(dev_exit);
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("FriendlyARM Inc.");
++MODULE_DESCRIPTION("S3C2410/S3C2440 PWM Driver");
+

@@ -1,0 +1,19 @@
+http://bugzilla.openmoko.org/cgi-bin/bugzilla/show_bug.cgi?id=1172
+
+This patch seems to alleviate the symptoms but doesn't cure them.
+Keep it to keep development going, until we have a proper solution.
+
+Index: linux-2.6.24/sound/soc/codecs/wm8753.c
+===================================================================
+--- linux-2.6.24.orig/sound/soc/codecs/wm8753.c
++++ linux-2.6.24/sound/soc/codecs/wm8753.c
+@@ -1585,6 +1585,9 @@
+ 	schedule_delayed_work(&codec->delayed_work,
+ 		msecs_to_jiffies(caps_charge));
+ 
++	/* Fix reg WM8753_ADCTL2 */
++	wm8753_write(codec, WM8753_ADCTL2, 0x0000);
++
+ 	/* set the update bits */
+ 	reg = wm8753_read_reg_cache(codec, WM8753_LDAC);
+ 	wm8753_write(codec, WM8753_LDAC, reg | 0x0100);

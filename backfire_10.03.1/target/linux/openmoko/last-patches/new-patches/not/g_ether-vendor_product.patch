@@ -1,0 +1,34 @@
+Use FIC's own USB Vendor ID rather than NetChip's
+
+Yes, we could solve this by some modprobe.conf parameters, but I'd like to
+rather not rely on this.
+
+Index: linux-2.6.23-rc8/drivers/usb/gadget/ether.c
+===================================================================
+--- linux-2.6.23-rc8.orig/drivers/usb/gadget/ether.c
++++ linux-2.6.23-rc8/drivers/usb/gadget/ether.c
+@@ -156,11 +156,8 @@
+  * Instead:  allocate your own, using normal USB-IF procedures.
+  */
+ 
+-/* Thanks to NetChip Technologies for donating this product ID.
+- * It's for devices with only CDC Ethernet configurations.
+- */
+-#define CDC_VENDOR_NUM	0x0525		/* NetChip */
+-#define CDC_PRODUCT_NUM	0xa4a1		/* Linux-USB Ethernet Gadget */
++#define CDC_VENDOR_NUM	0x1457		/* First International Computer */
++#define CDC_PRODUCT_NUM	0x5117		/* Linux-USB Ethernet Gadget */
+ 
+ /* For hardware that can't talk CDC, we use the same vendor ID that
+  * ARM Linux has used for ethernet-over-usb, both with sa1100 and
+@@ -181,8 +178,8 @@
+  * used with CDC Ethernet, Linux 2.4 hosts will need updates to choose
+  * the non-RNDIS configuration.
+  */
+-#define RNDIS_VENDOR_NUM	0x0525	/* NetChip */
+-#define RNDIS_PRODUCT_NUM	0xa4a2	/* Ethernet/RNDIS Gadget */
++#define RNDIS_VENDOR_NUM	0x1457	/* NetChip */
++#define RNDIS_PRODUCT_NUM	0x5122	/* Ethernet/RNDIS Gadget */
+ 
+ 
+ /* Some systems will want different product identifers published in the

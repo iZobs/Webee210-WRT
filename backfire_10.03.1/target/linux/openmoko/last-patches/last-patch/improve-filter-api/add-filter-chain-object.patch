@@ -1,0 +1,649 @@
+Add filter_chain object
+
+From: Nelson Castillo <arhuaco@freaks-unidos.net>
+
+Filter chains should be completely opaque to the drivers that use it.
+We fix this with this patch.
+
+~ Make the "filter chain" a new object.
+~ We can build with CONFIG_TOUCHSCREEN_FILTER=n with no problems in
+  a cleaner way.
+~ Update s3c2410_ts.c to use the filter_chain object.
+~ Cleanups.
+
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+ arch/arm/mach-s3c2410/include/mach/ts.h      |    2 
+ arch/arm/mach-s3c2410/mach-gta01.c           |    3 -
+ arch/arm/mach-s3c2442/mach-gta02.c           |    3 -
+ drivers/input/touchscreen/s3c2410_ts.c       |   36 +++++---
+ drivers/input/touchscreen/ts_filter.h        |   38 --------
+ drivers/input/touchscreen/ts_filter_chain.c  |  119 +++++++++++++++-----------
+ drivers/input/touchscreen/ts_filter_chain.h  |   58 +++++++++++++
+ drivers/input/touchscreen/ts_filter_group.c  |    4 -
+ drivers/input/touchscreen/ts_filter_group.h  |    2 
+ drivers/input/touchscreen/ts_filter_linear.c |   21 +++--
+ drivers/input/touchscreen/ts_filter_linear.h |    2 
+ drivers/input/touchscreen/ts_filter_mean.c   |    4 -
+ 12 files changed, 172 insertions(+), 120 deletions(-)
+ create mode 100644 drivers/input/touchscreen/ts_filter_chain.h
+
+
+diff --git a/arch/arm/mach-s3c2410/include/mach/ts.h b/arch/arm/mach-s3c2410/include/mach/ts.h
+index 41ac64c..ffd73d5 100644
+--- a/arch/arm/mach-s3c2410/include/mach/ts.h
++++ b/arch/arm/mach-s3c2410/include/mach/ts.h
+@@ -27,7 +27,7 @@ struct s3c2410_ts_mach_info {
+ 	 * Null-terminated array of pointers to filter APIs and configurations
+ 	 * we want to use. In the same order they will be applied.
+ 	 */
+-	const struct ts_filter_configuration *filter_config;
++	const struct ts_filter_chain_configuration *filter_config;
+ };
+ 
+ void set_s3c2410ts_info(const struct s3c2410_ts_mach_info *hard_s3c2410ts_info);
+diff --git a/arch/arm/mach-s3c2410/mach-gta01.c b/arch/arm/mach-s3c2410/mach-gta01.c
+index d40cd83..a828b66 100644
+--- a/arch/arm/mach-s3c2410/mach-gta01.c
++++ b/arch/arm/mach-s3c2410/mach-gta01.c
+@@ -89,6 +89,7 @@
+ 
+ #include <linux/jbt6k74.h>
+ 
++#include <../drivers/input/touchscreen/ts_filter_chain.h>
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+ #include <../drivers/input/touchscreen/ts_filter_linear.h>
+ #include <../drivers/input/touchscreen/ts_filter_mean.h>
+@@ -730,7 +731,7 @@ static struct ts_filter_linear_configuration gta01_ts_linear = {
+ };
+ #endif
+ 
+-struct ts_filter_configuration filter_configuration[] =
++struct ts_filter_chain_configuration filter_configuration[] =
+ {
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+ 	{&ts_filter_group_api,		&gta01_ts_group.config},
+diff --git a/arch/arm/mach-s3c2442/mach-gta02.c b/arch/arm/mach-s3c2442/mach-gta02.c
+index fa55aba..229271b 100644
+--- a/arch/arm/mach-s3c2442/mach-gta02.c
++++ b/arch/arm/mach-s3c2442/mach-gta02.c
+@@ -103,6 +103,7 @@
+ 
+ #include "../plat-s3c24xx/neo1973_pm_gps.h"
+ 
++#include <../drivers/input/touchscreen/ts_filter_chain.h>
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+ #include <../drivers/input/touchscreen/ts_filter_linear.h>
+ #include <../drivers/input/touchscreen/ts_filter_mean.h>
+@@ -977,7 +978,7 @@ const static struct ts_filter_linear_configuration gta02_ts_linear = {
+ };
+ #endif
+ 
+-const struct ts_filter_configuration filter_configuration[] =
++const struct ts_filter_chain_configuration filter_configuration[] =
+ {
+ #ifdef CONFIG_TOUCHSCREEN_FILTER
+ 	{&ts_filter_group_api,		&gta02_ts_group.config},
+diff --git a/drivers/input/touchscreen/s3c2410_ts.c b/drivers/input/touchscreen/s3c2410_ts.c
+index ccd4a44..23d7e28 100644
+--- a/drivers/input/touchscreen/s3c2410_ts.c
++++ b/drivers/input/touchscreen/s3c2410_ts.c
+@@ -65,7 +65,7 @@
+ #include <mach/hardware.h>
+ #include <plat/regs-adc.h>
+ 
+-#include "ts_filter.h"
++#include "ts_filter_chain.h"
+ 
+ /* For ts.dev.id.version */
+ #define S3C2410TSVERSION	0x0101
+@@ -110,7 +110,7 @@ static char *s3c2410ts_name = "s3c2410 TouchScreen";
+ 
+ struct s3c2410ts {
+ 	struct input_dev *dev;
+-	struct ts_filter **tsf;
++	struct ts_filter_chain *chain;
+ 	int is_down;
+ 	int state;
+ 	struct kfifo *event_fifo;
+@@ -238,7 +238,7 @@ static void event_send_timer_f(unsigned long data)
+ 			ts_input_report(IE_UP, NULL);
+ 			ts.state = TS_STATE_STANDBY;
+ 
+-			ts_filter_chain_clear(ts.tsf);
++			ts_filter_chain_clear(ts.chain);
+ 		}
+ 	} else {
+ 		mod_timer(&event_send_timer, jiffies + TS_RELEASE_TIMEOUT);
+@@ -292,23 +292,29 @@ static irqreturn_t stylus_action(int irq, void *dev_id)
+ 	buf[2] = readl(base_addr + S3C2410_ADCDAT1) &
+ 		       S3C2410_ADCDAT1_YPDATA_MASK;
+ 
+-	switch (ts_filter_chain_feed(ts.tsf, &buf[1])) {
++	switch (ts_filter_chain_feed(ts.chain, &buf[1])) {
+ 	case 0:
++		/* The filter wants more points. */
+ 		s3c2410_ts_start_adc_conversion();
+ 		return IRQ_HANDLED;
++	case 1:
++		/* We have a point from the filters or no filtering enabled. */
++		buf[0] = 'P';
++		break;
++	default:
++		printk(KERN_ERR __FILE__
++		       ":%d Invalid ts_filter_chain_feed return value.\n",
++		       __LINE__);
+ 	case -1:
+ 		/* Error. Ignore the event. */
+-		ts_filter_chain_clear(ts.tsf);
++		ts_filter_chain_clear(ts.chain);
+ 		writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+ 		return IRQ_HANDLED;
+-	default:
+-		/* We have a point from the filters or no filtering enabled. */
+-		buf[0] = 'P';
+ 	};
+ 
+ 	if (unlikely(__kfifo_put(ts.event_fifo, (unsigned char *)buf,
+ 		     sizeof(int) * 3) != sizeof(int) * 3))
+-		printk(KERN_ERR":stylus_action error\n"); /* happens => bug */
++		printk(KERN_ERR __FILE__":stylus_action bug.\n");
+ 
+ 	writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+ 	mod_timer(&event_send_timer, jiffies + 1);
+@@ -410,12 +416,12 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	/* create the filter chain set up for the 2 coordinates we produce */
+-	ts.tsf = ts_filter_chain_create(pdev, info->filter_config, 2);
++	ts.chain = ts_filter_chain_create(pdev, info->filter_config, 2);
+ 
+-	if (!ts.tsf)
++	if (IS_ERR(ts.chain))
+ 		goto bail2;
+ 
+-	ts_filter_chain_clear(ts.tsf);
++	ts_filter_chain_clear(ts.chain);
+ 
+ 	/* Get irqs */
+ 	if (request_irq(IRQ_ADC, stylus_action, IRQF_SAMPLE_RANDOM,
+@@ -454,7 +460,7 @@ bail5:
+ bail4:
+ 	disable_irq(IRQ_ADC);
+ bail3:
+-	ts_filter_chain_destroy(ts.tsf);
++	ts_filter_chain_destroy(ts.chain);
+ 	kfifo_free(ts.event_fifo);
+ bail2:
+ 	input_unregister_device(ts.dev);
+@@ -481,7 +487,7 @@ static int s3c2410ts_remove(struct platform_device *pdev)
+ 	input_unregister_device(ts.dev);
+ 	iounmap(base_addr);
+ 
+-	ts_filter_chain_destroy(ts.tsf);
++	ts_filter_chain_destroy(ts.chain);
+ 
+ 	kfifo_free(ts.event_fifo);
+ 
+@@ -511,7 +517,7 @@ static int s3c2410ts_resume(struct platform_device *pdev)
+ 	clk_enable(adc_clock);
+ 	mdelay(1);
+ 
+-	ts_filter_chain_clear(ts.tsf);
++	ts_filter_chain_clear(ts.chain);
+ 
+ 	enable_irq(IRQ_ADC);
+ 	enable_irq(IRQ_TC);
+diff --git a/drivers/input/touchscreen/ts_filter.h b/drivers/input/touchscreen/ts_filter.h
+index 0e4704f..aac1e02 100644
+--- a/drivers/input/touchscreen/ts_filter.h
++++ b/drivers/input/touchscreen/ts_filter.h
+@@ -62,10 +62,6 @@ struct ts_filter_api {
+  * as a member.
+  */
+ struct ts_filter_configuration {
+-	/* API to use */
+-	const struct ts_filter_api *api;
+-	/* Generic filter configuration. Different for each filter. */
+-	const struct ts_filter_configuration *config;
+ };
+ 
+ struct ts_filter {
+@@ -75,38 +71,4 @@ struct ts_filter {
+ 	int count_coords;
+ };
+ 
+-#ifdef CONFIG_TOUCHSCREEN_FILTER
+-
+-/*
+- * Helper to create a filter chain. It will allocate an array of
+- * null-terminated pointers to filters.
+- */
+-extern struct ts_filter **ts_filter_chain_create(
+-	struct platform_device *pdev,
+-	const struct ts_filter_configuration conf[],
+-	int count_coords);
+-
+-/* Helper to destroy a whole chain from the list of filter pointers. */
+-extern void ts_filter_chain_destroy(struct ts_filter **arr);
+-
+-/* Helper to call the clear API function */
+-extern void ts_filter_chain_clear(struct ts_filter **arr);
+-
+-/*
+- * Try to get one point. Returns 0 if no points are available.
+- * coords will be used as temporal space, thus you supply a point
+- * using coords but you shouldn't rely on its value on return unless
+- * it returns a nonzero value that is not -1.
+- * If one of the filters find an error then this function will
+- * return -1.
+- */
+-int ts_filter_chain_feed(struct ts_filter **arr, int *coords);
+-
+-#else /* !CONFIG_TOUCHSCREEN_FILTER */
+-#define ts_filter_chain_create(pdev, config, count_coords) (0) /*TODO:fail!*/
+-#define ts_filter_chain_destroy(pdev, arr) do { } while (0)
+-#define ts_filter_chain_clear(arr) do { } while (0)
+-#define ts_filter_chain_feed(arr, coords) (1)
+-#endif
+-
+ #endif
+diff --git a/drivers/input/touchscreen/ts_filter_chain.c b/drivers/input/touchscreen/ts_filter_chain.c
+index 9b2b1c5..a6346bd 100644
+--- a/drivers/input/touchscreen/ts_filter_chain.c
++++ b/drivers/input/touchscreen/ts_filter_chain.c
+@@ -18,6 +18,8 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/device.h>
++
++#include "ts_filter_chain.h"
+ #include "ts_filter.h"
+ 
+ /*
+@@ -41,28 +43,39 @@ static int sptrlen(const void *arr)
+ 	return len;
+ }
+ 
+-/* FIXME: rename & remove this temporal hack. */
+-static struct ts_filter **revchain;
+ 
+-struct ts_filter **ts_filter_chain_create(
++struct ts_filter_chain {
++	/* All of the filters. */
++	struct ts_filter **arr;
++	/* Filters that can propagate values in the chain. */
++	struct ts_filter **pchain;
++	/* Length of the pchain array. */
++	int pchain_len;
++	/* FIXME: Add a spinlock and use it. */
++};
++
++struct ts_filter_chain *ts_filter_chain_create(
+ 	struct platform_device *pdev,
+-	const struct ts_filter_configuration conf[],
++	const struct ts_filter_chain_configuration conf[],
+ 	int count_coords)
+ {
+-	struct ts_filter **arr;
++	struct ts_filter_chain *c;
+ 	int count = 0;
+ 	int len;
+-	int nrev = 0;
+ 
+ 	BUG_ON((count_coords < 1));
+ 	BUG_ON(count_coords > MAX_TS_FILTER_COORDS);
+ 
++	c = kzalloc(sizeof(struct ts_filter_chain), GFP_KERNEL);
++	if (!c)
++		goto create_err_1;
++
+ 	len = (sptrlen(conf) + 1);
+-	/* memory for two null-terminated arrays of filters */
+-	arr = kzalloc(2 * sizeof(struct ts_filter *) * len, GFP_KERNEL);
+-	if (!arr)
+-		goto create_err;
+-	revchain = arr + len;
++	/* Memory for two null-terminated arrays of filters. */
++	c->arr = kzalloc(2 * sizeof(struct ts_filter *) * len, GFP_KERNEL);
++	if (!c->arr)
++		goto create_err_1;
++	c->pchain = c->arr + len;
+ 
+ 	while (conf->api) {
+ 		/* TODO: Can we get away with only sending pdev->dev? */
+@@ -71,60 +84,63 @@ struct ts_filter **ts_filter_chain_create(
+ 		if (!f) {
+ 			dev_info(&pdev->dev, "Filter %d creation failed\n",
+ 				 count);
+-			goto create_err;
++			goto create_err_2;
+ 		}
+ 
+ 		f->api = conf->api;
+-		arr[count++] = f;
++		c->arr[count++] = f;
+ 
+-		/* Filters that can propagate values in the chain. */
+ 		if (f->api->haspoint && f->api->getpoint && f->api->process)
+-			revchain[nrev++] = f;
++			c->pchain[c->pchain_len++] = f;
+ 
+ 		conf++;
+ 	}
+ 
+ 	dev_info(&pdev->dev, "%d filter(s) initialized\n", count);
+ 
+-	return arr;
+-
+-create_err:
++	return c;
+ 
++create_err_2:
++	ts_filter_chain_destroy(c); /* Also frees c. */
++create_err_1:
+ 	dev_info(&pdev->dev, "Error in filter chain initialization\n");
+-
+-	ts_filter_chain_destroy(arr);
+-
+-	return NULL;
++	/*
++	 * FIXME: Individual filters have to return errors this way.
++	 * We only have to forward the errors we find.
++	 */
++	return ERR_PTR(-ENOMEM);
+ }
+ EXPORT_SYMBOL_GPL(ts_filter_chain_create);
+ 
+-void ts_filter_chain_destroy(struct ts_filter **arr)
++void ts_filter_chain_destroy(struct ts_filter_chain *c)
+ {
+-	struct ts_filter **a = arr;
+-	int count = 0;
+-
+-	while (arr && *a) {
+-		((*a)->api->destroy)(*a);
+-		a++;
+-		count++;
++	if (c->arr) {
++		struct ts_filter **a = c->arr;
++		while (*a) {
++			((*a)->api->destroy)(*a);
++			a++;
++		}
++		kfree(c->arr);
+ 	}
+-
+-	kfree(arr);
++	kfree(c);
+ }
+ EXPORT_SYMBOL_GPL(ts_filter_chain_destroy);
+ 
+-void ts_filter_chain_clear(struct ts_filter **arr)
++void ts_filter_chain_clear(struct ts_filter_chain *c)
+ {
+-	while (*arr) {
+-		if ((*arr)->api->clear)
+-			((*arr)->api->clear)(*arr);
+-		arr++;
++	struct ts_filter **a = c->arr;
++
++	while (*a) {
++		if ((*a)->api->clear)
++			((*a)->api->clear)(*a);
++		a++;
+ 	}
+ }
+ EXPORT_SYMBOL_GPL(ts_filter_chain_clear);
+ 
+-static void ts_filter_chain_scale(struct ts_filter **a, int *coords)
++static void ts_filter_chain_scale(struct ts_filter_chain *c, int *coords)
+ {
++	struct ts_filter **a = c->arr;
+ 	while (*a) {
+ 		if ((*a)->api->scale)
+ 			((*a)->api->scale)(*a, coords);
+@@ -132,37 +148,36 @@ static void ts_filter_chain_scale(struct ts_filter **a, int *coords)
+ 	}
+ }
+ 
+-int ts_filter_chain_feed(struct ts_filter **arr, int *coords)
++int ts_filter_chain_feed(struct ts_filter_chain *c, int *coords)
+ {
+-	/* FIXME: only using revchain */
+-	int len = sptrlen(revchain); /* FIXME: save this */
++	int len = c->pchain_len;
+ 	int i = len - 1;
+ 
+-	if (!arr[0])
+-		return 1; /* Nothing to do. Filtering disabled. */
++	if (!c->pchain[0])
++		return 1; /* Nothing to do. */
+ 
+-	BUG_ON(arr[0]->api->haspoint(arr[0]));
++	BUG_ON(c->pchain[0]->api->haspoint(c->pchain[0]));
+ 
+-	if (arr[0]->api->process(arr[0], coords))
++	if (c->pchain[0]->api->process(c->pchain[0], coords))
+ 		return -1;
+ 
+ 	while (i >= 0 && i < len) {
+-		if (revchain[i]->api->haspoint(revchain[i])) {
+-			revchain[i]->api->getpoint(revchain[i], coords);
++		if (c->pchain[i]->api->haspoint(c->pchain[i])) {
++			c->pchain[i]->api->getpoint(c->pchain[i], coords);
+ 			if (++i < len &&
+-			    revchain[i]->api->process(revchain[i], coords))
++			    c->pchain[i]->api->process(c->pchain[i], coords))
+ 				return -1; /* Error. */
+ 		} else {
+ 			i--;
+ 		}
+ 	}
+ 
+-	if (i >= 0) {
+-		BUG_ON(i != len); /* FIXME: Remove BUG_ON. */
+-		ts_filter_chain_scale(arr, coords); /* TODO: arr! */
++	if (i >= 0) {	/* Same as i == len. */
++		ts_filter_chain_scale(c, coords);
++		return 1;
+ 	}
+ 
+-	return i >= 0; /* Same as i == len. */
++	return 0;
+ }
+ EXPORT_SYMBOL_GPL(ts_filter_chain_feed);
+ 
+diff --git a/drivers/input/touchscreen/ts_filter_chain.h b/drivers/input/touchscreen/ts_filter_chain.h
+new file mode 100644
+index 0000000..806bffe
+--- /dev/null
++++ b/drivers/input/touchscreen/ts_filter_chain.h
+@@ -0,0 +1,58 @@
++#ifndef __TS_FILTER_CHAIN_H__
++#define __TS_FILTER_CHAIN_H__
++
++/*
++ * Touchscreen filter chains.
++ *
++ * (c) 2008,2009 Andy Green <andy@openmoko.com>
++ */
++
++#include "ts_filter.h"
++
++#include <linux/err.h>
++
++struct ts_filter_chain_configuration {
++	/* API to use. */
++	const struct ts_filter_api *api;
++	/* Generic filter configuration. Different for each filter. */
++	const struct ts_filter_configuration *config;
++};
++
++struct ts_filter_chain;
++
++#ifdef CONFIG_TOUCHSCREEN_FILTER
++
++/*
++ * Create a filter chain. It will allocate an array of
++ * null-terminated pointers to filters. On error it will return
++ * an error you can check with IS_ERR.
++ */
++extern struct ts_filter_chain *ts_filter_chain_create(
++	struct platform_device *pdev,
++	const struct ts_filter_chain_configuration conf[],
++	int count_coords);
++
++/* Destroy the chain. */
++extern void ts_filter_chain_destroy(struct ts_filter_chain *c);
++
++/* Clear the filter chain. */
++extern void ts_filter_chain_clear(struct ts_filter_chain *c);
++
++/*
++ * Try to get one point. Returns 0 if no points are available.
++ * coords will be used as temporal space, thus you supply a point
++ * using coords but you shouldn't rely on its value on return unless
++ * it returns a nonzero value that is not -1.
++ * If one of the filters find an error then this function will
++ * return -1.
++ */
++int ts_filter_chain_feed(struct ts_filter_chain *c, int *coords);
++
++#else /* !CONFIG_TOUCHSCREEN_FILTER */
++#define ts_filter_chain_create(pdev, config, count_coords) (NULL)
++#define ts_filter_chain_destroy(c) do { } while (0)
++#define ts_filter_chain_clear(c) do { } while (0)
++#define ts_filter_chain_feed(c, coords) (1)
++#endif
++
++#endif
+diff --git a/drivers/input/touchscreen/ts_filter_group.c b/drivers/input/touchscreen/ts_filter_group.c
+index 18236e2..b7c3f3d 100644
+--- a/drivers/input/touchscreen/ts_filter_group.c
++++ b/drivers/input/touchscreen/ts_filter_group.c
+@@ -49,7 +49,7 @@ struct ts_filter_group {
+ 	/* Filter API. */
+ 	struct ts_filter tsf;
+ 
+-	int N;			/* How many samples we have */
++	int N;			/* How many samples we have. */
+ 	int *samples[MAX_TS_FILTER_COORDS];	/* The samples: our input. */
+ 
+ 	int *group_size;	/* Used for temporal computations. */
+@@ -198,7 +198,7 @@ static int ts_filter_group_process(struct ts_filter *tsf, int *coords)
+ 		}
+ 
+ 		if (best_size < tsfg->config->threshold) {
+-			/* this set is not good enough for us */
++			/* This set is not good enough for us. */
+ 			if (--tsfg->tries_left) {
+ 				ts_filter_group_clear_internal
+ 					(tsfg, tsfg->tries_left);
+diff --git a/drivers/input/touchscreen/ts_filter_group.h b/drivers/input/touchscreen/ts_filter_group.h
+index c7d094d..d1e3590 100644
+--- a/drivers/input/touchscreen/ts_filter_group.h
++++ b/drivers/input/touchscreen/ts_filter_group.h
+@@ -6,7 +6,7 @@
+ /*
+  * Touchscreen group filter.
+  *
+- * Copyright (C) 2008 by Openmoko, Inc.
++ * Copyright (C) 2008,2009 by Openmoko, Inc.
+  * Author: Nelson Castillo <arhuaco@freaks-unidos.net>
+  *
+  */
+diff --git a/drivers/input/touchscreen/ts_filter_linear.c b/drivers/input/touchscreen/ts_filter_linear.c
+index 8a10495..7718bbc 100644
+--- a/drivers/input/touchscreen/ts_filter_linear.c
++++ b/drivers/input/touchscreen/ts_filter_linear.c
+@@ -24,19 +24,20 @@
+  *
+  */
+ 
+-#include "ts_filter_linear.h"
+ #include <linux/kernel.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ 
+-struct ts_filter_linear;
++#include "ts_filter_linear.h"
+ 
+-/* Sysfs. */
++struct ts_filter_linear;
+ 
+-/* FIXME: Comment all structure attributes. */
++/* Sysfs code. */
+ 
+ struct const_obj {
++	/* The actual private object. */
+ 	struct ts_filter_linear *tsfl;
++	/* Our kobject. */
+ 	struct kobject kobj;
+ };
+ 
+@@ -56,18 +57,26 @@ struct const_attribute {
+ /* Private linear filter structure. */
+ 
+ struct ts_filter_linear {
+-	struct ts_filter tsf; /* TODO: don't use as first */
+-
++	/* Private configuration for this filter. */
+ 	struct ts_filter_linear_configuration *config;
+ 
++	/* Generic filter API. */
++	struct ts_filter tsf;
+ 
++	/* Linear constants for the transformation. */
+ 	int constants[TS_FILTER_LINEAR_NCONSTANTS];
+ 
+ 	/* Sysfs. */
++
++	/* Our const_object. */
+ 	struct const_obj c_obj;
++	/* Our type. We will stick operations to it. */
+ 	struct kobj_type const_ktype;
++	/* Attrs. of the virtual files. */
+ 	struct const_attribute kattrs[TS_FILTER_LINEAR_NCONSTANTS];
++	/* Default Attrs. Always NULL for us. */
+ 	struct attribute *attrs[TS_FILTER_LINEAR_NCONSTANTS + 1];
++	/* Storage for the name of the virtual files. */
+ 	char attr_names[TS_FILTER_LINEAR_NCONSTANTS][2];
+ };
+ 
+diff --git a/drivers/input/touchscreen/ts_filter_linear.h b/drivers/input/touchscreen/ts_filter_linear.h
+index 67f6f94..82df3d2 100644
+--- a/drivers/input/touchscreen/ts_filter_linear.h
++++ b/drivers/input/touchscreen/ts_filter_linear.h
+@@ -7,7 +7,7 @@
+ /*
+  * Touchscreen linear filter.
+  *
+- * Copyright (C) 2008 by Openmoko, Inc.
++ * Copyright (C) 2008,2009 by Openmoko, Inc.
+  * Author: Nelson Castillo <arhuaco@freaks-unidos.net>
+  *
+  */
+diff --git a/drivers/input/touchscreen/ts_filter_mean.c b/drivers/input/touchscreen/ts_filter_mean.c
+index a3c5f08..7621ded 100644
+--- a/drivers/input/touchscreen/ts_filter_mean.c
++++ b/drivers/input/touchscreen/ts_filter_mean.c
+@@ -125,7 +125,7 @@ static int ts_filter_mean_process(struct ts_filter *tsf, int *coords)
+ 
+ 	priv->curr = (priv->curr + 1) % priv->config->length;
+ 
+-	return 0; /* no error */
++	return 0; /* No error. */
+ }
+ 
+ static int ts_filter_mean_haspoint(struct ts_filter *tsf)
+@@ -156,7 +156,7 @@ static void ts_filter_mean_scale(struct ts_filter *tsf, int *coords)
+ 	struct ts_filter_mean *priv = ts_filter_to_filter_mean(tsf);
+ 
+ 	for (n = 0; n < tsf->count_coords; n++) {
+-		coords[n] += priv->config->length >> 1; /* rounding */
++		coords[n] += priv->config->length >> 1; /* Rounding. */
+ 		coords[n] /= priv->config->length;
+ 	}
+ }

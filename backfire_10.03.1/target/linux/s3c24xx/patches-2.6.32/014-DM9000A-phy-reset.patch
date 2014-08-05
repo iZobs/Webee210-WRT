@@ -1,0 +1,39 @@
+--- linux-2.6.32.27/drivers/net/dm9000.c.orig	2011-06-21 08:38:08.544934154 +0800
++++ linux-2.6.32.27/drivers/net/dm9000.c	2011-06-21 11:37:56.531378295 +0800
+@@ -752,9 +752,9 @@
+ 	dm9000_set_rx_csum_unlocked(dev, db->rx_csum);
+ 
+ 	/* GPIO0 on pre-activate PHY */
+-	iow(db, DM9000_GPR, 0);	/* REG_1F bit0 activate phyxcer */
++//	iow(db, DM9000_GPR, 0);	/* REG_1F bit0 activate phyxcer */
+ 	iow(db, DM9000_GPCR, GPCR_GEP_CNTL);	/* Let GPIO0 output */
+-	iow(db, DM9000_GPR, 0);	/* Enable PHY */
++//	iow(db, DM9000_GPR, 0);	/* Enable PHY */
+ 
+ 	if (db->flags & DM9000_PLATF_EXT_PHY)
+ 		iow(db, DM9000_NCR, NCR_EXT_PHY);
+@@ -793,10 +793,11 @@
+ 	u8 reg_save;
+ 	unsigned long flags;
+ 
++	spin_lock_irqsave(&db->lock, flags);
++	
+ 	/* Save previous register address */
+ 	reg_save = readb(db->io_addr);
+-	spin_lock_irqsave(&db->lock, flags);
+-
++	
+ 	netif_stop_queue(dev);
+ 	dm9000_reset(db);
+ 	dm9000_init_dm9000(dev);
+@@ -1100,6 +1101,10 @@
+ 
+ 	if (request_irq(dev->irq, &dm9000_interrupt, irqflags, dev->name, dev))
+ 		return -EAGAIN;
++	
++	/* GPIO0 on pre-activate PHY, Reg 1F is not set by reset */
++	iow(db, DM9000_GPR, 0);	/* REG_1F bit0 activate phyxcer */
++	udelay(1000); /* Delay needs by DM9000AEP.fixed by Lintel*/
+ 
+ 	/* Initialize DM9000 board */
+ 	dm9000_reset(db);

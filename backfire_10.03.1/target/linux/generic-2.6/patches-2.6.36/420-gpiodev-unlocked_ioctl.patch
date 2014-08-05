@@ -1,0 +1,22 @@
+--- a/drivers/char/gpio_dev.c.orig	2012-06-02 18:23:56.036212814 +0800
++++ b/drivers/char/gpio_dev.c	2012-06-02 18:24:03.132212816 +0800
+@@ -31,6 +31,7 @@
+ #include <linux/device.h>
+ #include <linux/platform_device.h>
+ #include <linux/gpio_dev.h>
++#include <linux/version.h>
+ 
+ #define DRVNAME		"gpiodev"
+ #define DEVNAME		"gpio"
+@@ -123,7 +124,11 @@
+ }
+ 
+ struct file_operations gpio_fops = {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34)
++	unlocked_ioctl:		gpio_ioctl,
++#else
+ 	ioctl:		gpio_ioctl,
++#endif
+ 	open:		gpio_open,
+ 	release:	gpio_close
+ };

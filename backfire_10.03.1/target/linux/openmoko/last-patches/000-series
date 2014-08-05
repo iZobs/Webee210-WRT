@@ -1,0 +1,117 @@
+#pcf50606的其他部分, RTC, WatchDog
+# Atheros WLAN driver
+pnp_fixes.patch
+atheros_2_0_function.patch
+atheros_2_0_hcd.patch
+atheros_2_0_sdio_stack.patch
+#gta01 backlight, keyboard, gsm, etc.
+#s3c2410_ts.c
+
+####### gta02 feature set
+#gta02-core.patch
+#gta02-power_control.patch
+#gta02-sound.patch
+#lis302dl.patch
+#gta02-leds.patch
+#gta02-acc.patch
+#gta02-bt-fixes.patch
+gta02-sound-bandaid.patch # tmp
+#fiq-hdq.patch
+#bq27000-battery-driver.patch
+
+
+# GTA01 core feature set
+#gta01-core.patch
+#gta01-jbt6k74.patch
+gta01-inputdevice.patch
+gta01-power_control.patch
+gta01-vibrator.patch
+gta01-backlight.patch
+#gta01-dehang-printk.patch
+
+#OK
+#fix-i2c-s3c2410-resume-race.patch
+####### Touchscreen for S3C24xx
+#s3c2410-pwm.patch
+#s3c2410-bbt.patch
+#s3c2410_touchscreen.patch
+#s3c2410_ts-gta01.patch
+####### SD/MMC for S3C24xx
+#s3c_mci.patch
+#s3c_mci-gta01.patch
+#######
+#s3c2442b-cpuid.patch
+#s3c24xx-nand-largepage.patch
+#s3c2440-nand-disable-hwecc.patch
+#gta01-no_nand_partitions.patch
+#fix-hwecc-2410.patch
+#s3c2410_udc-2440_dual_packet-workaround.patch
+#s3c24xx-pcm-suspend.patch
+#s3c2410-usb-switch.patch
+#resume-timers-wq.patch
+
+#s3c_mci-gta01.patch
+#asoc-s3c24xx-iis-suspend_resume.patch
+#s3c2410_fb-truecolor.patch
+#s3c2410_serial-nodebug.patch
+
+###### WM8753
+#asoc-core-suspend_resume.patch
+#asoc-neo1973_wm8753-power.patch
+#wm8753-rout2-inv.patch
+#neo1973-soc-include-fix.patch
+#montour-audio.patch
+
+#iis-suspend.patch
+#config-nr-tty-devices.patch
+#kexec-atags.patch
+
+
+######## MFD glamo
+#glamo-mmc.patch
+#glamo-cmdqueue-bandaid.patch
+#smedia-glamo.patch
+
+
+
+
+#NOT
+#openmoko-logo.patch
+#yaffs2-20070905.patch
+######## qt2410 local hacks
+#qt2410-cs8900.patch
+#s3c2410-qt2410-buttons.patch
+#qt2410-s3c_mci-pdata.patch
+######## hxd8 feature set
+#hxd8-core.patch
+#hxd8-tsl256x.patch
+
+######## MFD PCF50633, Using Other Codes
+fix-pcf50606-LOWBAT-kill-init.patch
+fix-pcf50633-LOWBAT-kill-init.patch
+gta01-pcf50606.patch
+pcf50633.patch
+pcf50633-suspend-hacks.patch
+pcf506xx.patch
+
+####### Others
+fail-unless-uimage.patch
+explicitly-link-notes-section.patch
+# additional local stuff
+fix-EVIOCGRAB-semantics.patch
+missing_defs.patch
+pm-debug_less_verbose.patch
+input-nots-mousedev.patch
+suspend-prelim1.patch
+# debugging support
+dump-gpio.patch
+udc-nomodule-misccr.patch
+i2c-permit_invalid_addrs.patch
+# pending review
+g_ether-highpower.patch
+g_ether-vendor_product.patch
+# FIQ code
+introduce-fiq-basis.patch
+introduce-fiq-use-timer3-as-source.patch
+introduce-fiq-migrate-vibrator-gta02-only.patch
+

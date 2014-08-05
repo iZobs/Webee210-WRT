@@ -1,0 +1,11 @@
+#
+# Configuration for FIMG-2D
+#
+
+config VIDEO_G2D
+	bool "Samsung FIMG-2D Driver" 
+	depends on VIDEO_SAMSUNG && (CPU_S3C6410 || CPU_S5PC100)
+	default n
+	---help---
+	  This is a FIMG-2D(2D accelerator) driver for Samsung S3C6410 and S5PC100.
+

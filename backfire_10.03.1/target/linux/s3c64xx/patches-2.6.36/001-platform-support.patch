@@ -1,0 +1,433 @@
+diff -Nru linux-2.6.36.2/arch/arm/mach-s3c64xx/clock.c linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/clock.c
+--- linux-2.6.36.2/arch/arm/mach-s3c64xx/clock.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/clock.c	2011-01-30 08:23:27.000000000 +0000
+@@ -61,6 +61,30 @@
+ 	.rate		= 27000000,
+ };
+ 
++#ifdef CONFIG_VIDEO_SAMSUNG
++static int s3c64xx_setrate_sclk_cam(struct clk *clk, unsigned long rate)
++{
++	u32 shift = 20;
++	u32 cam_div, cfg;
++	unsigned long src_clk = clk_get_rate(clk->parent);
++
++	cam_div = src_clk / rate;
++
++	if (cam_div > 32)
++		cam_div = 32;
++
++	cfg = __raw_readl(S3C_CLK_DIV0);
++	cfg &= ~(0xf << shift);
++	cfg |= ((cam_div - 1) << shift);
++	__raw_writel(cfg, S3C_CLK_DIV0);
++
++	printk("parent clock for camera: %ld.%03ld MHz, divisor: %d\n", \
++			print_mhz(src_clk), cam_div);
++
++	return 0;
++}
++#endif
++
+ static int clk_48m_ctrl(struct clk *clk, int enable)
+ {
+ 	unsigned long flags;
+@@ -322,7 +346,59 @@
+ 		.parent		= &clk_h,
+ 		.enable		= s3c64xx_hclk_ctrl,
+ 		.ctrlbit	= S3C_CLKCON_HCLK_IHOST,
+-	}
++	},
++
++#ifdef CONFIG_VIDEO_SAMSUNG
++	{
++		.name		= "fimc",
++		.id		= -1,
++		.parent		= &clk_h,
++		.ctrlbit	= S3C_CLKCON_HCLK_CAMIF,
++	}, {
++		.name		= "hclk_mfc",
++		.id		= -1,
++		.parent		= &clk_h,
++		.enable		= s3c64xx_hclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_HCLK_MFC,
++	}, {
++		.name		= "sclk_mfc",
++		.id		= -1,
++		.parent		= &clk_h2,
++		.enable		= s3c64xx_sclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_SCLK_MFC,
++		.usage		= 0,
++		.rate		= 48*1000*1000,
++	}, {
++		.name		= "pclk_mfc",
++		.id		= -1,
++		.parent		= &clk_p,
++		.enable		= s3c64xx_pclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_PCLK_MFC,
++	}, {
++		.name		= "hclk_jpeg",
++		.id		= -1,
++		.parent		= &clk_h,
++		.enable		= s3c64xx_hclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_HCLK_JPEG,
++	}, {
++		.name		= "sclk_jpeg",
++		.id		= -1,
++		.parent		= &clk_h2,
++		.enable		= s3c64xx_sclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_SCLK_JPEG,
++		.usage		= 0,
++		.rate		= 48*1000*1000,
++	}, {
++		.name		= "sclk_cam",
++		.id		= -1,
++		.parent		= &clk_h2,
++		.enable		= s3c64xx_sclk_ctrl,
++		.ctrlbit	= S3C_CLKCON_SCLK_CAM,
++		.ops        = &(struct clk_ops) {
++			.set_rate	= s3c64xx_setrate_sclk_cam,
++		},
++	},
++#endif
+ };
+ 
+ 
+diff -Nru linux-2.6.36/arch/arm/mach-s3c64xx/include/mach/regs-sys.h linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/include/mach/regs-sys.h
+--- linux-2.6.36/arch/arm/mach-s3c64xx/include/mach/regs-sys.h	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/include/mach/regs-sys.h	2010-11-08 04:19:04.000000000 +0000
+@@ -23,6 +23,7 @@
+ 
+ #define S3C64XX_OTHERS		S3C_SYSREG(0x900)
+ 
+-#define S3C64XX_OTHERS_USBMASK	(1 << 16)
++#define S3C64XX_OTHERS_USBMASK			(1 << 16)
++#define S3C64XX_OTHERS_SYNCMUXSEL_SYNC	(1 << 6)
+ 
+ #endif /* _PLAT_REGS_SYS_H */
+
+diff -Nru linux-2.6.36.2/arch/arm/mach-s3c64xx/include/mach/map.h linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/include/mach/map.h
+--- linux-2.6.36.2/arch/arm/mach-s3c64xx/include/mach/map.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/include/mach/map.h	2011-01-30 08:23:27.000000000 +0000
+@@ -105,6 +105,27 @@
+ #define VA_VIC0			(S3C_VA_IRQ + 0x00)
+ #define VA_VIC1			(S3C_VA_IRQ + 0x10000)
+ 
++
++/* CAMIF, MFC, TV, JPEG... */
++#define S3C64XX_PA_G2D		(0x76100000)
++#define S3C64XX_SZ_G2D		SZ_1M
++#define S3C64XX_PA_G3D		(0x72000000)
++#define S3C64XX_SZ_G3D		SZ_16M
++#define S3C64XX_PA_FIMC		(0x78000000)
++#define S3C64XX_SZ_FIMC		SZ_1M
++#define S3C6400_PA_TVENC	(0x76200000)
++#define S3C_SZ_TVENC		SZ_1M
++#define S3C6400_PA_TVSCALER	(0x76300000)
++#define S3C_SZ_TVSCALER		SZ_1M
++#define S3C6400_PA_ROTATOR	(0x77200000)
++#define S3C_SZ_ROTATOR		SZ_1M
++#define S3C6400_PA_JPEG		(0x78800000)
++#define S3C_SZ_JPEG			SZ_4M
++#define S3C6400_PA_VPP		(0x77000000)
++#define S3C_SZ_VPP			SZ_1M
++#define S3C6400_PA_MFC		(0x7E002000)
++#define S3C_SZ_MFC			SZ_4K
++
+ /* compatibiltiy defines. */
+ #define S3C_PA_TIMER		S3C64XX_PA_TIMER
+ #define S3C_PA_HSMMC0		S3C64XX_PA_HSMMC0
+
+diff -Nru linux-2.6.36/arch/arm/mach-s3c64xx/Kconfig linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/Kconfig
+--- linux-2.6.36/arch/arm/mach-s3c64xx/Kconfig	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/Kconfig	2010-10-26 08:47:47.000000000 +0100
+@@ -193,6 +193,45 @@
+ 	  detected at runtime so the the resulting kernel can be used
+ 	  with or without the 1192-EV1 fitted.
+ 
++config MACH_MINI6410
++	bool "MINI6410"
++	select CPU_S3C6410
++	select SAMSUNG_DEV_ADC
++	select S3C_DEV_HSMMC
++	select S3C_DEV_HSMMC1
++	select S3C_DEV_FB
++	select S3C_DEV_USB_HOST
++	select S3C_DEV_USB_HSOTG
++	select S3C_DEV_WDT
++	select S3C_DEV_RTC
++	select HAVE_S3C2410_WATCHDOG
++	select S3C64XX_SETUP_SDHCI
++	select S3C64XX_SETUP_FB_24BPP
++	select S3C64XX_DEV_FIMC0 if VIDEO_SAMSUNG
++	select S3C64XX_DEV_FIMC1 if VIDEO_SAMSUNG
++	select WIRELESS_EXT
++	select WEXT_SPY
++	select WEXT_PRIV
++	help
++	  Machine support for the FriendlyARM Mini6410
++
++menu "MINI6410 MMC/SD slot setup"
++	depends on MACH_MINI6410
++
++config MINI6410_SD_CH0
++	bool "Use channel 0 (removable)"
++	depends on MACH_MINI6410
++	help
++	  Say Y to enable MMC/SD slot 0 for USB storage, Camera, Wi-Fi etc.
++
++config MINI6410_SD_CH1
++	bool "Use channel 1 (on-board)"
++	depends on MACH_MINI6410
++	help
++	  Say Y to enable the NONREMOVABLE slot for SDIO Wi-Fi.
++
++endmenu
++
+ config MACH_NCP
+ 	bool "NCP"
+ 	select CPU_S3C6410
+diff -Nru linux-2.6.36/arch/arm/mach-s3c64xx/Makefile linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/Makefile
+--- linux-2.6.36/arch/arm/mach-s3c64xx/Makefile	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/arch/arm/mach-s3c64xx/Makefile	2010-10-26 08:47:47.000000000 +0100
+@@ -52,6 +52,7 @@
+ obj-$(CONFIG_MACH_ANW6410)	+= mach-anw6410.o
+ obj-$(CONFIG_MACH_SMDK6400)	+= mach-smdk6400.o
+ obj-$(CONFIG_MACH_SMDK6410)	+= mach-smdk6410.o
++obj-$(CONFIG_MACH_MINI6410)	+= mach-mini6410.o
+ obj-$(CONFIG_MACH_REAL6410)     += mach-real6410.o
+ obj-$(CONFIG_MACH_NCP)		+= mach-ncp.o
+ obj-$(CONFIG_MACH_HMT)		+= mach-hmt.o
+@@ -66,3 +67,4 @@
+ obj-$(CONFIG_S3C64XX_DEV_SPI)	+= dev-spi.o
+ obj-$(CONFIG_S3C64XX_DEV_TS)	+= dev-ts.o
+ obj-$(CONFIG_S3C64XX_DEV_ONENAND1)	+= dev-onenand1.o
++obj-$(CONFIG_TOUCHSCREEN_MINI6410)  += dev-ts-mini6410.o
+diff -Nru linux-2.6.36.2/arch/arm/mach-s3c64xx/setup-sdhci-gpio.c linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/setup-sdhci-gpio.c
+--- linux-2.6.36.2/arch/arm/mach-s3c64xx/setup-sdhci-gpio.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/mach-s3c64xx/setup-sdhci-gpio.c	2011-02-24 08:02:07.000000000 +0000
+@@ -46,7 +46,7 @@
+ 	struct s3c_sdhci_platdata *pdata = dev->dev.platform_data;
+ 	unsigned int gpio;
+ 	unsigned int end;
+-
++printk("enter s3c64xx_setup_sdhci1_cfg_gpio\n");
+ 	end = S3C64XX_GPH(2 + width);
+ 
+ 	/* Set all the necessary GPG pins to special-function 0 */
+
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/dev-fb.c linux-2.6.36.2-v1.05/arch/arm/plat-samsung/dev-fb.c
+--- linux-2.6.36.2/arch/arm/plat-samsung/dev-fb.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/dev-fb.c	2011-01-19 07:46:58.000000000 +0000
+@@ -35,6 +35,7 @@
+ 		.end   = IRQ_LCD_VSYNC,
+ 		.flags = IORESOURCE_IRQ,
+ 	},
++
+ 	[2] = {
+ 		.start = IRQ_LCD_FIFO,
+ 		.end   = IRQ_LCD_FIFO,
+@@ -45,6 +46,7 @@
+ 		.end   = IRQ_LCD_SYSTEM,
+ 		.flags = IORESOURCE_IRQ,
+ 	},
++
+ };
+ 
+ struct platform_device s3c_device_fb = {
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/include/plat/devs.h linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/devs.h
+--- linux-2.6.36.2/arch/arm/plat-samsung/include/plat/devs.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/devs.h	2011-02-24 08:02:07.000000000 +0000
+@@ -59,6 +59,8 @@
+ 
+ extern struct platform_device s3c_device_spi0;
+ extern struct platform_device s3c_device_spi1;
++extern struct platform_device s3c_device_fimc0;
++extern struct platform_device s3c_device_fimc1;
+ 
+ extern struct platform_device s5pc100_device_spi0;
+ extern struct platform_device s5pc100_device_spi1;
+@@ -104,9 +106,17 @@
+ 
+ extern struct platform_device samsung_device_keypad;
+ 
++extern struct platform_device s3c_device_tvenc;
++extern struct platform_device s3c_device_tvscaler;
+ extern struct platform_device s5p_device_fimc0;
+ extern struct platform_device s5p_device_fimc1;
+ extern struct platform_device s5p_device_fimc2;
++extern struct platform_device s3c_device_g2d;
++extern struct platform_device s3c_device_g3d;
++extern struct platform_device s3c_device_vpp;
++extern struct platform_device s3c_device_mfc;
++extern struct platform_device s3c_device_rotator;
++extern struct platform_device s3c_device_jpeg;
+ 
+ /* s3c2440 specific devices */
+ 
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/include/plat/map-base.h linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/map-base.h
+--- linux-2.6.36.2/arch/arm/plat-samsung/include/plat/map-base.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/map-base.h	2011-01-19 07:46:58.000000000 +0000
+@@ -1,4 +1,4 @@
+-/* linux/include/asm-arm/plat-s3c/map.h
++/* linux/arch/arm/plat-samsung/include/plat/map-base.h
+  *
+  * Copyright 2003, 2007 Simtec Electronics
+  *	http://armlinux.simtec.co.uk/
+@@ -36,6 +36,7 @@
+ #define S3C_VA_TIMER	S3C_ADDR(0x00300000)	/* timer block */
+ #define S3C_VA_WATCHDOG	S3C_ADDR(0x00400000)	/* watchdog */
+ #define S3C_VA_UART	S3C_ADDR(0x01000000)	/* UART */
++#define S3C_VA_LCD 	S3C_ADDR(0x01100000)	/* LCD */
+ 
+ /* This is used for the CPU specific mappings that may be needed, so that
+  * they do not need to directly used S3C_ADDR() and thus make it easier to
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/include/plat/regs-adc.h linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/regs-adc.h
+--- linux-2.6.36.2/arch/arm/plat-samsung/include/plat/regs-adc.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/regs-adc.h	2011-01-19 07:46:58.000000000 +0000
+@@ -12,6 +12,7 @@
+ #ifndef __ASM_ARCH_REGS_ADC_H
+ #define __ASM_ARCH_REGS_ADC_H "regs-adc.h"
+ 
++
+ #define S3C2410_ADCREG(x) (x)
+ 
+ #define S3C2410_ADCCON	   S3C2410_ADCREG(0x00)
+@@ -59,6 +60,64 @@
+ #define S3C2410_ADCDAT1_XY_PST		(0x3<<12)
+ #define S3C2410_ADCDAT1_YPDATA_MASK	(0x03FF)
+ 
+-#endif /* __ASM_ARCH_REGS_ADC_H */
+ 
++/*--------------------------- Common definitions for S3C  ---------------------------*/
++/* The following definitions will be applied to S3C24XX, S3C64XX, S5PC1XX.	     */
++/*-----------------------------------------------------------------------------------*/
++
++#define S3C_ADCREG(x) 			(x)
++
++#define S3C_ADCCON	   		S3C_ADCREG(0x00)
++#define S3C_ADCTSC	  		S3C_ADCREG(0x04)
++#define S3C_ADCDLY	   		S3C_ADCREG(0x08)
++#define S3C_ADCDAT0	   		S3C_ADCREG(0x0C)
++#define S3C_ADCDAT1	   		S3C_ADCREG(0x10)
++#define S3C_ADCUPDN			S3C_ADCREG(0x14)
++#define S3C_ADCCLRINT			S3C_ADCREG(0x18)
++#define S3C_ADCMUX			S3C_ADCREG(0x1C)
++#define S3C_ADCCLRWK			S3C_ADCREG(0x20)
++
++/* ADCCON Register Bits */
++#define S3C_ADCCON_RESSEL_10BIT		(0x0<<16)
++#define S3C_ADCCON_RESSEL_12BIT		(0x1<<16)
++#define S3C_ADCCON_ECFLG		(1<<15)
++#define S3C_ADCCON_PRSCEN		(1<<14)
++#define S3C_ADCCON_PRSCVL(x)		(((x)&0xFF)<<6)
++#define S3C_ADCCON_PRSCVLMASK		(0xFF<<6)
++#define S3C_ADCCON_SELMUX(x)		(((x)&0x7)<<3)
++#define S3C_ADCCON_SELMUX_1(x)		(((x)&0xF)<<0)
++#define S3C_ADCCON_MUXMASK		(0x7<<3)
++#define S3C_ADCCON_RESSEL_10BIT_1	(0x0<<3)
++#define S3C_ADCCON_RESSEL_12BIT_1	(0x1<<3)
++#define S3C_ADCCON_STDBM		(1<<2)
++#define S3C_ADCCON_READ_START		(1<<1)
++#define S3C_ADCCON_ENABLE_START		(1<<0)
++#define S3C_ADCCON_STARTMASK		(0x3<<0)
++
++/* ADCTSC Register Bits */
++#define S3C_ADCTSC_UD_SEN		(1<<8)
++#define S3C_ADCTSC_YM_SEN		(1<<7)
++#define S3C_ADCTSC_YP_SEN		(1<<6)
++#define S3C_ADCTSC_XM_SEN		(1<<5)
++#define S3C_ADCTSC_XP_SEN		(1<<4)
++#define S3C_ADCTSC_PULL_UP_DISABLE	(1<<3)
++#define S3C_ADCTSC_AUTO_PST		(1<<2)
++#define S3C_ADCTSC_XY_PST(x)		(((x)&0x3)<<0)
++
++/* ADCDAT0 Bits */
++#define S3C_ADCDAT0_UPDOWN		(1<<15)
++#define S3C_ADCDAT0_AUTO_PST		(1<<14)
++#define S3C_ADCDAT0_XY_PST		(0x3<<12)
++#define S3C_ADCDAT0_XPDATA_MASK		(0x03FF)
++#define S3C_ADCDAT0_XPDATA_MASK_12BIT	(0x0FFF)
++
++/* ADCDAT1 Bits */
++#define S3C_ADCDAT1_UPDOWN		(1<<15)
++#define S3C_ADCDAT1_AUTO_PST		(1<<14)
++#define S3C_ADCDAT1_XY_PST		(0x3<<12)
++#define S3C_ADCDAT1_YPDATA_MASK		(0x03FF)
++#define S3C_ADCDAT1_YPDATA_MASK_12BIT	(0x0FFF)
++
++
++#endif /* __ASM_ARCH_REGS_ADC_H */
+ 
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/include/plat/ts.h linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/ts.h
+--- linux-2.6.36.2/arch/arm/plat-samsung/include/plat/ts.h	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/include/plat/ts.h	2011-01-19 07:46:58.000000000 +0000
+@@ -18,7 +18,7 @@
+ };
+ 
+ extern void s3c24xx_ts_set_platdata(struct s3c2410_ts_mach_info *);
+-
++extern void s3c_ts_set_platdata(struct s3c_ts_mach_info *pd);
+ /* defined by architecture to configure gpio */
+ extern void s3c24xx_ts_cfg_gpio(struct platform_device *dev);
+ 
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/Kconfig linux-2.6.36.2-v1.05/arch/arm/plat-samsung/Kconfig
+--- linux-2.6.36.2/arch/arm/plat-samsung/Kconfig	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/Kconfig	2011-01-30 08:23:27.000000000 +0000
+@@ -242,6 +242,28 @@
+ 	help
+ 	  Compile in platform device definitions for keypad
+ 
++config S3C64XX_DEV_FIMC0
++	bool
++	help
++	  Compile in platform device definitions for FIMC controller 0
++
++config S3C64XX_DEV_FIMC1
++	bool
++	help
++	  Compile in platform device definitions for FIMC controller 1
++
++config S3C64XX_SETUP_FIMC0
++	bool
++	default y if S3C64XX_DEV_FIMC0
++	help
++	  Common setup code for FIMC controller 0
++
++config S3C64XX_SETUP_FIMC1
++	bool
++	default y if S3C64XX_DEV_FIMC1
++	help
++	  Common setup code for FIMC controller 1
++
+ # DMA
+ 
+ config S3C_DMA
+
+diff -Nru linux-2.6.36.2/arch/arm/plat-samsung/Makefile linux-2.6.36.2-v1.05/arch/arm/plat-samsung/Makefile
+--- linux-2.6.36.2/arch/arm/plat-samsung/Makefile	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/arch/arm/plat-samsung/Makefile	2011-01-30 08:23:27.000000000 +0000
+@@ -51,9 +51,21 @@
+ 
+ obj-$(CONFIG_SAMSUNG_DEV_ADC)	+= dev-adc.o
+ obj-$(CONFIG_SAMSUNG_DEV_IDE)	+= dev-ide.o
+-obj-$(CONFIG_SAMSUNG_DEV_TS)	+= dev-ts.o
++#	delete it
++#	obj-$(CONFIG_SAMSUNG_DEV_TS)	+= dev-ts.o
+ obj-$(CONFIG_SAMSUNG_DEV_KEYPAD)	+= dev-keypad.o
+ 
++#	add it
++ifdef CONFIG_VIDEO_SAMSUNG
++obj-y				+= bootmem.o
++obj-y				+= dev-video.o
++endif
++obj-$(CONFIG_S3C64XX_DEV_FIMC0)	+= dev-fimc0.o
++obj-$(CONFIG_S3C64XX_DEV_FIMC1)	+= dev-fimc1.o
++obj-$(CONFIG_S3C64XX_SETUP_FIMC0)	+= setup-fimc0.o
++obj-$(CONFIG_S3C64XX_SETUP_FIMC1)	+= setup-fimc1.o
++
++
+ # DMA support
+ 
+ obj-$(CONFIG_S3C_DMA)		+= dma.o
+

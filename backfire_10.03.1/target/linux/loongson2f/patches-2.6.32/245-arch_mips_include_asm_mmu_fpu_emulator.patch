@@ -1,0 +1,82 @@
+--- linux-2.6.32.33/arch/mips/include/asm/mmu_context.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/mmu_context.h	2011-03-26 03:39:49.000000000 +0800
+@@ -24,6 +24,33 @@
+ #endif /* SMTC */
+ #include <asm-generic/mm_hooks.h>
+ 
++#ifdef CONFIG_MIPS_PGD_C0_CONTEXT
++
++#define TLBMISS_HANDLER_SETUP_PGD(pgd)				\
++	tlbmiss_handler_setup_pgd((unsigned long)(pgd))
++
++static inline void tlbmiss_handler_setup_pgd(unsigned long pgd)
++{
++	/* Check for swapper_pg_dir and convert to physical address. */
++	if ((pgd & CKSEG3) == CKSEG0)
++		pgd = CPHYSADDR(pgd);
++	write_c0_context(pgd << 11);
++}
++
++#define TLBMISS_HANDLER_SETUP()						\
++	do {								\
++		TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir);		\
++		write_c0_xcontext((unsigned long) smp_processor_id() << 51); \
++	} while (0)
++
++
++static inline unsigned long get_current_pgd(void)
++{
++	return PHYS_TO_XKSEG_CACHED((read_c0_context() >> 11) & ~0xfffUL);
++}
++
++#else /* CONFIG_MIPS_PGD_C0_CONTEXT: using  pgd_current*/
++
+ /*
+  * For the fast tlb miss handlers, we keep a per cpu array of pointers
+  * to the current pgd for each processor. Also, the proc. id is stuffed
+@@ -46,7 +73,7 @@
+ 	back_to_back_c0_hazard();					\
+ 	TLBMISS_HANDLER_SETUP_PGD(swapper_pg_dir)
+ #endif
+-
++#endif /* CONFIG_MIPS_PGD_C0_CONTEXT*/
+ #if defined(CONFIG_CPU_R3000) || defined(CONFIG_CPU_TX39XX)
+ 
+ #define ASID_INC	0x40
+--- linux-2.6.32.33/arch/mips/include/asm/fpu_emulator.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/fpu_emulator.h	2011-03-26 03:39:49.000000000 +0800
+@@ -25,17 +25,27 @@
+ 
+ #include <asm/break.h>
+ #include <asm/inst.h>
++#include <asm/local.h>
++
++#ifdef CONFIG_DEBUG_FS
+ 
+ struct mips_fpu_emulator_stats {
+-	unsigned int emulated;
+-	unsigned int loads;
+-	unsigned int stores;
+-	unsigned int cp1ops;
+-	unsigned int cp1xops;
+-	unsigned int errors;
++	local_t emulated;
++	local_t loads;
++	local_t stores;
++	local_t cp1ops;
++	local_t cp1xops;
++	local_t errors;
+ };
+ 
+-extern struct mips_fpu_emulator_stats fpuemustats;
++DECLARE_PER_CPU(struct mips_fpu_emulator_stats, fpuemustats);
++
++#define MIPS_FPU_EMU_INC_STATS(M)					\
++	cpu_local_wrap(__local_inc(&__get_cpu_var(fpuemustats).M))
++
++#else
++#define MIPS_FPU_EMU_INC_STATS(M) do { } while (0)
++#endif /* CONFIG_DEBUG_FS */
+ 
+ extern int mips_dsemul(struct pt_regs *regs, mips_instruction ir,
+ 	unsigned long cpc);

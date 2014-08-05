@@ -1,0 +1,47 @@
+From 66afaf1498ec68bceb0d6f62a2f2b7f557f4a2ee Mon Sep 17 00:00:00 2001
+From: izobs <ivincentlin@gmail.com>
+Date: Tue, 5 Aug 2014 11:42:15 +0800
+Subject: [PATCH 2/2] fix-s3c-nand-driver
+
+---
+ arch/arm/plat-samsung/include/plat/nand-core.h |   28 ++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+ create mode 100644 arch/arm/plat-samsung/include/plat/nand-core.h
+
+diff --git a/arch/arm/plat-samsung/include/plat/nand-core.h b/arch/arm/plat-samsung/include/plat/nand-core.h
+new file mode 100644
+index 0000000..6de2078
+--- /dev/null
++++ b/arch/arm/plat-samsung/include/plat/nand-core.h
+@@ -0,0 +1,28 @@
++/* arch/arm/plat-samsung/include/plat/nand-core.h
++ *
++ * Copyright (c) 2010 Samsung Electronics Co., Ltd.
++ *		http://www.samsung.com/
++ *
++ * S3C -  Nand Controller core functions
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++#ifndef __ASM_ARCH_NAND_CORE_H
++#define __ASM_ARCH_NAND_CORE_H __FILE__
++
++/* These functions are only for use with the core support code, such as
++ * the cpu specific initialisation code
++ */
++
++/* re-define device name depending on support. */
++static inline void s3c_nand_setname(char *name)
++{
++#ifdef CONFIG_S3C_DEV_NAND
++	s3c_device_nand.name = name;
++#endif
++}
++
++#endif /* __ASM_ARCH_NAND_CORE_H */
+-- 
+1.7.9.5
+

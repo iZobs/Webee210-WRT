@@ -1,0 +1,82 @@
+ 
+diff -Nru linux-2.6.36/drivers/media/video/Kconfig linux-2.6.36-Firendyarm/drivers/media/video/Kconfig
+--- linux-2.6.36/drivers/media/video/Kconfig	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/media/video/Kconfig	2010-10-26 08:47:50.000000000 +0100
+@@ -993,6 +993,9 @@
+ 	  This driver can be compiled as a module, called s2255drv.
+ 
+ endif # V4L_USB_DRIVERS
++
++source "drivers/media/video/samsung/Kconfig"
++
+ endif # VIDEO_CAPTURE_DRIVERS
+ 
+ menuconfig V4L_MEM2MEM_DRIVERS
+diff -Nru linux-2.6.36/drivers/media/video/Makefile linux-2.6.36-Firendyarm/drivers/media/video/Makefile
+--- linux-2.6.36/drivers/media/video/Makefile	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/media/video/Makefile	2010-10-26 08:47:50.000000000 +0100
+@@ -164,6 +164,7 @@
+ obj-$(CONFIG_VIDEO_SH_MOBILE_CSI2)	+= sh_mobile_csi2.o
+ obj-$(CONFIG_VIDEO_SH_MOBILE_CEU)	+= sh_mobile_ceu_camera.o
+ obj-$(CONFIG_VIDEO_SAMSUNG_S5P_FIMC) 	+= s5p-fimc/
++obj-$(CONFIG_VIDEO_SAMSUNG)		+= samsung/
+ 
+ obj-$(CONFIG_ARCH_DAVINCI)		+= davinci/
+ 
+diff -Nru linux-2.6.36/drivers/video/Kconfig linux-2.6.36-Firendyarm/drivers/video/Kconfig
+--- linux-2.6.36/drivers/video/Kconfig	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/video/Kconfig	2010-10-26 08:47:50.000000000 +0100
+@@ -1968,6 +1968,15 @@
+        ---help---
+          Show all register writes via printk(KERN_DEBUG)
+ 
++source "drivers/video/samsung/Kconfig"
++
++config BACKLIGHT_FRIENDLY_ARM
++	tristate "Backlight support for FriendlyARM board"
++	depends on FB && ARCH_S3C64XX
++	default y
++	help
++	  backlight driver for FriendlyARM board
++
+ config FB_S3C2410
+ 	tristate "S3C2410 LCD framebuffer support"
+ 	depends on FB && ARCH_S3C2410
+diff -Nru linux-2.6.36/drivers/video/Makefile linux-2.6.36-Firendyarm/drivers/video/Makefile
+--- linux-2.6.36/drivers/video/Makefile	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/video/Makefile	2010-10-26 08:47:50.000000000 +0100
+@@ -114,6 +114,7 @@
+ obj-$(CONFIG_FB_SH7760)		  += sh7760fb.o
+ obj-$(CONFIG_FB_IMX)              += imxfb.o
+ obj-$(CONFIG_FB_S3C)		  += s3c-fb.o
++obj-$(CONFIG_FB_S3C_EXT)	  += samsung/
+ obj-$(CONFIG_FB_S3C2410)	  += s3c2410fb.o
+ obj-$(CONFIG_FB_FSL_DIU)	  += fsl-diu-fb.o
+ obj-$(CONFIG_FB_COBALT)           += cobalt_lcdfb.o
+@@ -152,3 +153,6 @@
+ 
+ #video output switch sysfs driver
+ obj-$(CONFIG_VIDEO_OUTPUT_CONTROL) += output.o
++
++# FriendlyARM support
++obj-$(CONFIG_BACKLIGHT_FRIENDLY_ARM) += mini6410_backlight.o
+
+diff -Nru linux-2.6.36/include/media/v4l2-dev.h linux-2.6.36-Firendyarm/include/media/v4l2-dev.h
+--- linux-2.6.36/include/media/v4l2-dev.h	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/include/media/v4l2-dev.h	2010-10-26 07:40:34.000000000 +0100
+@@ -82,6 +82,12 @@
+ 	/* attribute to differentiate multiple indices on one physical device */
+ 	int index;
+ 
++#ifdef CONFIG_VIDEO_SAMSUNG
++	/* added for TV */
++	int type2;
++	int users;
++#endif
++
+ 	/* V4L2 file handles */
+ 	spinlock_t		fh_lock; /* Lock for all v4l2_fhs */
+ 	struct list_head	fh_list; /* List of struct v4l2_fh */
+
+
+

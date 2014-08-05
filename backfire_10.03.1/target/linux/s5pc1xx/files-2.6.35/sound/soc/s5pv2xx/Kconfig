@@ -1,0 +1,37 @@
+config SND_S5PV2XX_SOC
+	tristate "Samsung S5P Audio Drivers"
+	depends on ARCH_S5PV210
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the S5PV210 AC97 or I2S interfaces. You will also need to
+	  select the audio interfaces to support below.
+
+config SND_S3C_I2SV2_SOC
+	tristate
+
+config SND_S3C_NEW_DMA
+	tristate
+	default y if ANDROID
+
+config SND_S5PC1XX_SOC_I2S
+	tristate
+	select SND_S3C_I2SV2_SOC
+
+config SND_SOC_WM8960_MINI210
+	tristate
+
+config SND_S5PV2XX_SOC_WM8960
+	tristate "SoC I2S Audio support for WM8960 on MINI210"
+	depends on SND_S5PV2XX_SOC
+	select SND_SOC_WM8960_MINI210
+	select SND_S5PC1XX_SOC_I2S
+	help
+	  Say Y if you want to add support for SoC audio on the MINI210.
+
+config S5P_INTERNAL_DMA
+	bool "IIS operate with Internal DMA"
+	depends on SND_S5PV2XX_SOC_WM8960
+	default y
+	help
+	  Say Y for IIS to operate with Internal DMA(IIS's own DMA)
+

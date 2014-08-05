@@ -1,0 +1,61 @@
+ 
+diff -Nru linux-2.6.36/drivers/char/Kconfig linux-2.6.36-Firendyarm/drivers/char/Kconfig
+--- linux-2.6.36/drivers/char/Kconfig	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/char/Kconfig	2010-10-26 08:47:49.000000000 +0100
+@@ -97,6 +97,41 @@
+ 	  kind of kernel debugging operations.
+ 	  When in doubt, say "N".
+ 
++config MINI6410_LEDS
++	tristate "LED Support for Mini6410 GPIO LEDs"
++	depends on CPU_S3C6410
++	default y
++	help
++	  This option enables support for LEDs connected to GPIO lines
++	  on Mini6410 boards.
++
++config MINI6410_HELLO_MODULE
++	tristate "Mini6410 module sample"
++	depends on CPU_S3C6410
++	help
++	  Mini6410 module sample.
++
++config MINI6410_BUTTONS
++	tristate "Buttons driver for FriendlyARM Mini6410 development boards"
++	depends on CPU_S3C6410
++	default y
++	help
++	  this is buttons driver for FriendlyARM Mini6410 development boards
++
++config MINI6410_BUZZER
++	tristate "Buzzer driver for FriendlyARM Mini6410 development boards"
++	depends on CPU_S3C6410
++	default y
++	help
++	  this is buzzer driver for FriendlyARM Mini6410 development boards
++
++config MINI6410_ADC
++	bool "ADC driver for FriendlyARM Mini6410 development boards"
++	depends on MACH_MINI6410
++	default y if MACH_MINI6410
++	help
++	  this is ADC driver for FriendlyARM Mini6410 development boards
++
+ config BFIN_JTAG_COMM
+ 	tristate "Blackfin JTAG Communication"
+ 	depends on BLACKFIN
+diff -Nru linux-2.6.36/drivers/char/Makefile linux-2.6.36-Firendyarm/drivers/char/Makefile
+--- linux-2.6.36/drivers/char/Makefile	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/char/Makefile	2010-10-26 08:47:49.000000000 +0100
+@@ -116,6 +116,12 @@
+ obj-$(CONFIG_JS_RTC)		+= js-rtc.o
+ js-rtc-y = rtc.o
+ 
++obj-$(CONFIG_MINI6410_LEDS)	+= mini6410_leds.o
++obj-$(CONFIG_MINI6410_HELLO_MODULE)	+= mini6410_hello_module.o
++obj-$(CONFIG_MINI6410_BUTTONS)	+= mini6410_buttons.o
++obj-$(CONFIG_MINI6410_BUZZER)	+= mini6410_pwm.o
++obj-$(CONFIG_MINI6410_ADC)		+= mini6410_adc.o
++
+ # Files generated that shall be removed upon make clean
+ clean-files := consolemap_deftbl.c defkeymap.c

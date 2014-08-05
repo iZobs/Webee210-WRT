@@ -1,0 +1,51 @@
+diff -Nur linux-2.6.32.33/drivers/net/irda/au1k_ir.c linux-2.6.32.33-loongson2f/drivers/net/irda/au1k_ir.c
+--- linux-2.6.32.33/drivers/net/irda/au1k_ir.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/net/irda/au1k_ir.c	2011-03-26 03:39:49.000000000 +0800
+@@ -36,6 +36,7 @@
+ #include <asm/pb1000.h>
+ #elif defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100)
+ #include <asm/db1x00.h>
++#include <asm/mach-db1x00/bcsr.h>
+ #else 
+ #error au1k_ir: unsupported board
+ #endif
+@@ -66,10 +67,6 @@
+ 
+ #define RUN_AT(x) (jiffies + (x))
+ 
+-#if defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100)
+-static BCSR * const bcsr = (BCSR *)0xAE000000;
+-#endif
+-
+ static DEFINE_SPINLOCK(ir_lock);
+ 
+ /*
+@@ -282,9 +279,8 @@
+ 
+ #if defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100)
+ 	/* power on */
+-	bcsr->resets &= ~BCSR_RESETS_IRDA_MODE_MASK;
+-	bcsr->resets |= BCSR_RESETS_IRDA_MODE_FULL;
+-	au_sync();
++	bcsr_mod(BCSR_RESETS, BCSR_RESETS_IRDA_MODE_MASK,
++			      BCSR_RESETS_IRDA_MODE_FULL);
+ #endif
+ 
+ 	return 0;
+@@ -720,14 +716,14 @@
+ 
+ 	if (speed == 4000000) {
+ #if defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100)
+-		bcsr->resets |= BCSR_RESETS_FIR_SEL;
++		bcsr_mod(BCSR_RESETS, 0, BCSR_RESETS_FIR_SEL);
+ #else /* Pb1000 and Pb1100 */
+ 		writel(1<<13, CPLD_AUX1);
+ #endif
+ 	}
+ 	else {
+ #if defined(CONFIG_MIPS_DB1000) || defined(CONFIG_MIPS_DB1100)
+-		bcsr->resets &= ~BCSR_RESETS_FIR_SEL;
++		bcsr_mod(BCSR_RESETS, BCSR_RESETS_FIR_SEL, 0);
+ #else /* Pb1000 and Pb1100 */
+ 		writel(readl(CPLD_AUX1) & ~(1<<13), CPLD_AUX1);
+ #endif

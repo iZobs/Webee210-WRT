@@ -1,0 +1,27 @@
+This patch disables the reporting of touchscreen-like devices via
+/dev/input/mice.  In the Neo1973 (much like other handheld devices),
+we need this to distinguish between the touchscreen (which uses tslib)
+and optional additional usb/bluetooth mice that might be attached.
+
+Signed-off-by: Harald Welte <laforge@openmoko.org>
+
+Index: linux-2.6/drivers/input/mousedev.c
+===================================================================
+--- linux-2.6.orig/drivers/input/mousedev.c
++++ linux-2.6/drivers/input/mousedev.c
+@@ -1009,6 +1009,7 @@
+ 		.evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_REL) },
+ 		.relbit = { BIT_MASK(REL_WHEEL) },
+ 	},	/* A separate scrollwheel */
++#if 0
+ 	{
+ 		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+ 				INPUT_DEVICE_ID_MATCH_KEYBIT |
+@@ -1018,6 +1019,7 @@
+ 		.absbit = { BIT_MASK(ABS_X) | BIT_MASK(ABS_Y) },
+ 	},	/* A tablet like device, at least touch detection,
+ 		   two absolute axes */
++#endif
+ 	{
+ 		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+ 				INPUT_DEVICE_ID_MATCH_KEYBIT |

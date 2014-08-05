@@ -1,0 +1,80 @@
+--- linux-2.6.32.33/arch/mips/include/asm/cpu.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/cpu.h	2011-03-26 03:39:49.000000000 +0800
+@@ -154,6 +154,8 @@
+ #define PRID_REV_VR4181A	0x0070	/* Same as VR4122 */
+ #define PRID_REV_VR4130		0x0080
+ #define PRID_REV_34K_V1_0_2	0x0022
++#define PRID_REV_LOONGSON2E	0x0002
++#define PRID_REV_LOONGSON2F	0x0003
+ 
+ /*
+  * Older processors used to encode processor version and revision in two
+--- linux-2.6.32.33/arch/mips/include/asm/cpu-features.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/cpu-features.h	2011-03-26 03:39:49.000000000 +0800
+@@ -191,6 +191,9 @@
+ # ifndef cpu_has_64bit_addresses
+ # define cpu_has_64bit_addresses	0
+ # endif
++# ifndef cpu_vmbits
++# define cpu_vmbits 31
++# endif
+ #endif
+ 
+ #ifdef CONFIG_64BIT
+@@ -209,6 +212,10 @@
+ # ifndef cpu_has_64bit_addresses
+ # define cpu_has_64bit_addresses	1
+ # endif
++# ifndef cpu_vmbits
++# define cpu_vmbits cpu_data[0].vmbits
++# define __NEED_VMBITS_PROBE
++# endif
+ #endif
+ 
+ #if defined(CONFIG_CPU_MIPSR2_IRQ_VI) && !defined(cpu_has_vint)
+--- linux-2.6.32.33/arch/mips/include/asm/cpu-info.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/cpu-info.h	2011-03-26 03:39:49.000000000 +0800
+@@ -58,6 +58,9 @@
+ 	struct cache_desc	tcache;	/* Tertiary/split secondary cache */
+ 	int			srsets;	/* Shadow register sets */
+ 	int			core;	/* physical core number */
++#ifdef CONFIG_64BIT
++	int			vmbits;	/* Virtual memory size in bits */
++#endif
+ #if defined(CONFIG_MIPS_MT_SMP) || defined(CONFIG_MIPS_MT_SMTC)
+ 	/*
+ 	 * In the MIPS MT "SMTC" model, each TC is considered
+--- linux-2.6.32.33/arch/mips/include/asm/bootinfo.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/bootinfo.h	2011-03-26 03:39:49.000000000 +0800
+@@ -67,9 +67,9 @@
+ #define MACH_LEMOTE_ML2F7      3
+ #define MACH_LEMOTE_YL2F89     4
+ #define MACH_DEXXON_GDIUM2F10  5
+-#define MACH_LOONGSON_END      6
+-
+-#define CL_SIZE			COMMAND_LINE_SIZE
++#define MACH_LEMOTE_NAS        6
++#define MACH_LEMOTE_LL2F       7
++#define MACH_LOONGSON_END      8
+ 
+ extern char *system_type;
+ const char *get_system_type(void);
+@@ -107,7 +107,7 @@
+ /*
+  * Initial kernel command line, usually setup by prom_init()
+  */
+-extern char arcs_cmdline[CL_SIZE];
++extern char arcs_cmdline[COMMAND_LINE_SIZE];
+ 
+ /*
+  * Registers a0, a1, a3 and a4 as passed to the kernel entry by firmware
+--- linux-2.6.32.33/arch/mips/include/asm/elf.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/elf.h	2011-03-26 03:39:49.000000000 +0800
+@@ -310,6 +310,7 @@
+ 
+ #endif /* CONFIG_64BIT */
+ 
++struct pt_regs;
+ struct task_struct;
+ 
+ extern void elf_dump_regs(elf_greg_t *, struct pt_regs *regs);

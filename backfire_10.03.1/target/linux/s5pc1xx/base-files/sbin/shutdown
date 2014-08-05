@@ -1,0 +1,14 @@
+#!/bin/sh
+
+#clean LCD
+[ -c /dev/fb0 ] && dd if=/dev/zero of=/dev/fb0
+
+#turn off back-light of LCD
+[ -c /dev/backlight ] && echo 0 > /dev/backlight
+
+#then...
+if [ x$1 = x-r ] ; then
+	exec reboot
+else
+	exec halt
+fi

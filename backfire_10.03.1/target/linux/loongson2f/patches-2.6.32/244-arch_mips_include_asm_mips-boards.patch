@@ -1,0 +1,15 @@
+diff -Nur linux-2.6.32.33/arch/mips/include/asm/mips-boards/bonito64.h linux-2.6.32.33-loongson2f/arch/mips/include/asm/mips-boards/bonito64.h
+--- linux-2.6.32.33/arch/mips/include/asm/mips-boards/bonito64.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/mips-boards/bonito64.h	2011-03-26 03:39:49.000000000 +0800
+@@ -26,11 +26,6 @@
+ /* offsets from base register */
+ #define BONITO(x)	(x)
+ 
+-#elif defined(CONFIG_LEMOTE_FULOONG2E)
+-
+-#define BONITO(x) (*(volatile u32 *)((char *)CKSEG1ADDR(BONITO_REG_BASE) + (x)))
+-#define BONITO_IRQ_BASE   32
+-
+ #else
+ 
+ /*

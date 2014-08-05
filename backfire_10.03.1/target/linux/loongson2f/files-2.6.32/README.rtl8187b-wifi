@@ -1,0 +1,16 @@
+
+
+	RTL8187B wifi driver for YeeLoong-2F netbook
+
+Currently, the wifi driver is disabled by default, if you want to enable it
+when booting, please add the following line into /etc/rc.local:
+
+echo 1 > /sys/class/rfkill/rfkill0/state
+
+And If you want to use Fn+F5 to control the wifi, please ensure the
+yeeloong_laptop module is compiled into the kernel or loaded.
+
+And also, the NetworkManager are recommended to install to manage it.
+
+And an existing issue: The wifi can not survive after resuming from STD, but
+can survive from STR.

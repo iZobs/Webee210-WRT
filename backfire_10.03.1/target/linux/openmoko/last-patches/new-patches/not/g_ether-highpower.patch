@@ -1,0 +1,22 @@
+Index: linux-2.6.23-rc8/drivers/usb/gadget/ether.c
+===================================================================
+--- linux-2.6.23-rc8.orig/drivers/usb/gadget/ether.c
++++ linux-2.6.23-rc8/drivers/usb/gadget/ether.c
+@@ -486,7 +486,7 @@
+ 	.bConfigurationValue =	DEV_CONFIG_VALUE,
+ 	.iConfiguration =	STRING_CDC,
+ 	.bmAttributes =		USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
+-	.bMaxPower =		50,
++	.bMaxPower =		250,
+ };
+ 
+ #ifdef	CONFIG_USB_ETH_RNDIS
+@@ -500,7 +500,7 @@
+ 	.bConfigurationValue =  DEV_RNDIS_CONFIG_VALUE,
+ 	.iConfiguration =       STRING_RNDIS,
+ 	.bmAttributes =		USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
+-	.bMaxPower =            50,
++	.bMaxPower =            250,
+ };
+ #endif
+ 

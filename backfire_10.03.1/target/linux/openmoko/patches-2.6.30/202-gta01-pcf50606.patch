@@ -1,0 +1,37 @@
+--- a/drivers/mfd/Kconfig	2013-01-08 17:10:31.912269049 +0800
++++ b/drivers/mfd/Kconfig	2013-01-08 17:27:50.024269529 +0800
+@@ -241,6 +241,22 @@
+ 	 Say yes here if you want to include support GPIO for pins on
+ 	 the PCF50633 chip.
+ 
++config MFD_PCF50606
++	tristate "Support for NXP PCF50606"
++	depends on I2C
++	help
++	   Say yes here if you have NXP PCF50606 chip on your board.
++	   This core driver provides register access and IRQ handling
++	   facilities, and registers devices for the various functions
++	   so that function-specific drivers can bind to them.
++
++config PCF50606_ADC
++	tristate "Support for NXP PCF50606 ADC"
++	depends on MFD_PCF50606
++	help
++	  Say yes here if you want to include support for ADC in the
++	  NXP PCF50606 chip.
++
+ source "drivers/mfd/glamo/Kconfig"
+ 
+ endmenu
+--- a/drivers/mfd/Makefile	2013-01-08 20:00:52.580273761 +0800
++++ b/drivers/mfd/Makefile	2013-01-08 20:15:40.876274172 +0800
+@@ -38,6 +38,9 @@
+ obj-$(CONFIG_UCB1400_CORE)	+= ucb1400_core.o
+ 
+ obj-$(CONFIG_PMIC_DA903X)	+= da903x.o
++
++obj-$(CONFIG_MFD_PCF50606)	+= pcf50606-core.o
++obj-$(CONFIG_PCF50606_ADC)	+= pcf50606-adc.o
+ 
+ obj-$(CONFIG_MFD_PCF50633)	+= pcf50633-core.o
+ obj-$(CONFIG_PCF50633_ADC)	+= pcf50633-adc.o

@@ -1,0 +1,227 @@
+--- linux-2.6.32.2/drivers/char/s3c24xx-adc.h	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.2/drivers/char/s3c24xx-adc.h	2009-12-31 15:14:12.000000000 +0800
+@@ -0,0 +1,9 @@
++#ifndef _S3C2410_ADC_H_
++#define _S3C2410_ADC_H_
++
++#define ADC_WRITE(ch, prescale)	((ch)<<16|(prescale))
++
++#define ADC_WRITE_GETCH(data)	(((data)>>16)&0x7)
++#define ADC_WRITE_GETPRE(data)	((data)&0xff)
++
++#endif /* _S3C2410_ADC_H_ */
+--- linux-2.6.32.2/drivers/i2c/busses/i2c-s3c2410.c	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/i2c/busses/i2c-s3c2410.c	2010-01-06 12:25:16.000000000 +0800
+@@ -538,6 +538,9 @@
+ 	struct s3c24xx_i2c *i2c = (struct s3c24xx_i2c *)adap->algo_data;
+ 	int retry;
+ 	int ret;
++	struct s3c2410_platform_i2c *pdata = i2c->dev->platform_data;
++	if (pdata->cfg_gpio)
++		pdata->cfg_gpio(to_platform_device(i2c->dev));
+ 
+ 	for (retry = 0; retry < adap->retries; retry++) {
+ 
+--- linux-2.6.32.2/drivers/input/touchscreen/Kconfig	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/input/touchscreen/Kconfig	2009-12-31 15:08:22.000000000 +0800
+@@ -11,6 +11,17 @@
+ 
+ if INPUT_TOUCHSCREEN
+ 
++config TOUCHSCREEN_S3C2410
++	tristate "Samsung S3C2410 touchscreen input driver"
++	depends on (ARCH_S3C2410 || ARCH_S3C2440) && INPUT && INPUT_TOUCHSCREEN
++	help
++	  Say Y here if you have the s3c2410 touchscreen.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called s3c2410_ts.
++
+ config TOUCHSCREEN_ADS7846
+ 	tristate "ADS7846/TSC2046 and ADS7843 based touchscreens"
+ 	depends on SPI_MASTER
+--- linux-2.6.32.2/drivers/input/touchscreen/Makefile	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/input/touchscreen/Makefile	2009-12-31 15:00:55.000000000 +0800
+@@ -42,3 +42,4 @@
+ obj-$(CONFIG_TOUCHSCREEN_WM97XX_ZYLONITE)	+= zylonite-wm97xx.o
+ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
+ obj-$(CONFIG_TOUCHSCREEN_PCAP)		+= pcap_ts.o
++obj-$(CONFIG_TOUCHSCREEN_S3C2410) += s3c2410_ts.o
+
+--- linux-2.6.32.2/drivers/media/Kconfig	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/media/Kconfig	2010-01-01 10:47:41.000000000 +0800
+@@ -96,6 +96,11 @@
+ 	tristate
+ 	default (DVB_CORE && (VIDEO_DEV = n)) || (VIDEO_DEV && (DVB_CORE = n)) || (DVB_CORE && VIDEO_DEV)
+ 
++config  S3C2440_CAMERA
++	tristate "OV9650 on the S3C2440 driver"
++	depends on VIDEO_DEV && ARCH_S3C2440
++	default y if (VIDEO_DEV && ARCH_S3C2440)
++
+ comment "Multimedia drivers"
+ 
+ source "drivers/media/common/Kconfig"
+--- linux-2.6.32.2/drivers/media/video/Makefile	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/media/video/Makefile	2010-01-01 10:51:22.000000000 +0800
+@@ -12,6 +12,8 @@
+ 
+ videodev-objs	:=	v4l2-dev.o v4l2-ioctl.o v4l2-device.o
+ 
++s3c2440camera-objs	:=	s3c2440_ov9650.o sccb.o s3c2440camif.o
++
+ # V4L2 core modules
+ 
+ obj-$(CONFIG_VIDEO_DEV) += videodev.o v4l2-int-device.o
+@@ -166,6 +168,8 @@
+ 
+ obj-$(CONFIG_ARCH_DAVINCI)	+= davinci/
+ 
++obj-$(CONFIG_S3C2440_CAMERA) += s3c2440camera.o
++
+ EXTRA_CFLAGS += -Idrivers/media/dvb/dvb-core
+ EXTRA_CFLAGS += -Idrivers/media/dvb/frontends
+ EXTRA_CFLAGS += -Idrivers/media/common/tuners
+
+--- linux-2.6.32.2/drivers/net/dm9000.c	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/net/dm9000.c	2009-12-29 19:12:02.000000000 +0800
+@@ -38,6 +38,10 @@
+ #include <asm/irq.h>
+ #include <asm/io.h>
+ 
++#if defined(CONFIG_ARCH_S3C2410)
++#include <mach/regs-mem.h>
++#endif
++
+ #include "dm9000.h"
+ 
+ /* Board/System/Debug information/definition ---------------- */
+@@ -1472,6 +1476,8 @@
+ 			ndev->dev_addr[i] = ior(db, i+DM9000_PAR);
+ 	}
+ 
++	memcpy(ndev->dev_addr, "\x08\x90\x90\x90\x90\x90", 6);
++
+ 	if (!is_valid_ether_addr(ndev->dev_addr))
+ 		dev_warn(db->dev, "%s: Invalid ethernet MAC address. Please "
+ 			 "set using ifconfig\n", ndev->name);
+@@ -1568,6 +1574,13 @@
+ static int __init
+ dm9000_init(void)
+ {
++#if defined(CONFIG_ARCH_S3C2410)
++	unsigned int oldval_bwscon = *(volatile unsigned int *)S3C2410_BWSCON;
++	unsigned int oldval_bankcon4 = *(volatile unsigned int *)S3C2410_BANKCON4;
++	*((volatile unsigned int *)S3C2410_BWSCON) =
++			(oldval_bwscon & ~(3<<16)) | S3C2410_BWSCON_DW4_16 | S3C2410_BWSCON_WS4 | S3C2410_BWSCON_ST4;
++	*((volatile unsigned int *)S3C2410_BANKCON4) = 0x1f7c;
++#endif
+ 	printk(KERN_INFO "%s Ethernet Driver, V%s\n", CARDNAME, DRV_VERSION);
+ 
+ 	return platform_driver_register(&dm9000_driver);
+--- linux-2.6.32.2/drivers/serial/samsung.c	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/serial/samsung.c	2010-01-01 11:16:32.000000000 +0800
+@@ -43,6 +43,8 @@
+ #include <linux/delay.h>
+ #include <linux/clk.h>
+ #include <linux/cpufreq.h>
++#include <linux/gpio.h>
++#include <mach/regs-gpio.h>
+ 
+ #include <asm/irq.h>
+ 
+@@ -429,6 +431,13 @@
+ 
+ 	/* the port reset code should have done the correct
+ 	 * register setup for the port controls */
++	if (port->line == 2) {
++		s3c2410_gpio_cfgpin(S3C2410_GPH(6), S3C2410_GPH6_TXD2);
++		s3c2410_gpio_pullup(S3C2410_GPH(6), 1);
++		s3c2410_gpio_cfgpin(S3C2410_GPH(7), S3C2410_GPH7_RXD2);
++		s3c2410_gpio_pullup(S3C2410_GPH(7), 1);
++	}
++
+ 
+ 	return ret;
+ 
+--- linux-2.6.32.2/drivers/video/Kconfig	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/video/Kconfig	2010-07-28 17:10:14.000000000 +0800
+@@ -1927,6 +1927,56 @@
+ 	  Turn on debugging messages. Note that you can set/unset at run time
+ 	  through sysfs
+ 
++choice
++	prompt "LCD select"
++	depends on FB_S3C2410
++	help
++	   S3C24x0 LCD size select
++
++config FB_S3C2410_T240320
++	boolean "3.5 inch 240X320 Toppoly LCD"
++	depends on FB_S3C2410
++	help
++	  3.5 inch 240X320 Toppoly LCD
++
++config FB_S3C2410_N240320
++	boolean "3.5 inch 240X320 NEC LCD"
++	depends on FB_S3C2410
++	help
++	   3.5 inch 240x320 NEC LCD
++
++config FB_S3C2410_N480272
++	boolean "4.3 inch 480X272 NEC LCD"
++	depends on FB_S3C2410
++	help
++	   4.3 inch 480x272 NEC LCD
++
++config FB_S3C2410_TFT640480
++	boolean "8 inch 640X480 L80 LCD"
++	depends on FB_S3C2410
++	help
++	   8 inch 640X480 LCD
++
++config FB_S3C2410_TFT800480
++	boolean "7 inch 800x480 TFT LCD"
++	depends on FB_S3C2410
++	help
++	   7 inch 800x480 TFT LCD
++
++config FB_S3C2410_VGA1024768
++	boolean "VGA 1024x768"
++	depends on FB_S3C2410
++	help
++	   VGA 1024x768
++
++endchoice
++
++config BACKLIGHT_S3C2410
++	tristate "Backlight support for s3c2410/s3c2440"
++	depends on FB_S3C2410
++	help
++	  backlight driver for S3C2440/S3C2410
++
+ config FB_SM501
+ 	tristate "Silicon Motion SM501 framebuffer support"
+ 	depends on FB && MFD_SM501
+--- linux-2.6.32.2/drivers/video/Makefile	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/drivers/video/Makefile	2009-12-31 12:30:39.000000000 +0800
+@@ -145,3 +145,5 @@
+ 
+ #video output switch sysfs driver
+ obj-$(CONFIG_VIDEO_OUTPUT_CONTROL) += output.o
++
++obj-$(CONFIG_BACKLIGHT_S3C2410) += s3c2410_backlight.o
+
+ 
+--- linux-2.6.32.2/sound/soc/codecs/uda134x.c	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2/sound/soc/codecs/uda134x.c	2009-12-31 12:52:58.000000000 +0800
+@@ -198,6 +198,8 @@
+ 	} else
+ 		uda134x->master_substream = substream;
+ 
++	//
++	uda134x_write(codec, 2, 2|(5U<<2));
+ 	return 0;
+ }

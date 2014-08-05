@@ -1,0 +1,61 @@
+diff -Nru linux-2.6.36.2/drivers/usb/host/ohci-s3c2410.c linux-2.6.36.2-v1.05/drivers/usb/host/ohci-s3c2410.c
+--- linux-2.6.36.2/drivers/usb/host/ohci-s3c2410.c	2010-12-09 22:17:27.000000000 +0000
++++ linux-2.6.36.2-v1.05/drivers/usb/host/ohci-s3c2410.c	2011-03-01 08:31:09.000000000 +0000
+@@ -25,10 +25,12 @@
+ 
+ #define valid_port(idx) ((idx) == 1 || (idx) == 2)
+ 
++extern void s3c_otg_phy_config(int enable);
++
+ /* clock device associated with the hcd */
+ 
+ static struct clk *clk;
+-static struct clk *usb_clk;
++static struct clk *otg_clk, *usb_clk;
+ 
+ /* forward definitions */
+ 
+@@ -47,6 +49,10 @@
+ 
+ 	dev_dbg(&dev->dev, "s3c2410_start_hc:\n");
+ 
++	clk_enable(otg_clk);
++	s3c_otg_phy_config(1);
++
++
+ 	clk_enable(usb_clk);
+ 	mdelay(2);			/* let the bus clock stabilise */
+ 
+@@ -79,6 +85,7 @@
+ 
+ 	clk_disable(clk);
+ 	clk_disable(usb_clk);
++	clk_disable(otg_clk);
+ }
+ 
+ /* ohci_s3c2410_hub_status_data
+@@ -375,6 +382,13 @@
+ 		goto err_clk;
+ 	}
+ 
++	otg_clk = clk_get(&dev->dev, "otg");
++	if (IS_ERR(otg_clk)) {
++		dev_err(&dev->dev, "cannot get otg clock\n");
++		retval = -ENOENT;
++		goto err_otg;
++	}
++
+ 	s3c2410_start_hc(dev, hcd);
+ 
+ 	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
+@@ -395,6 +409,10 @@
+  err_ioremap:
+ 	s3c2410_stop_hc(dev);
+ 	iounmap(hcd->regs);
++
++	clk_put(otg_clk);
++
++ err_otg:
+ 	clk_put(usb_clk);
+ 
+  err_clk:

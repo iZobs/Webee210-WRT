@@ -1,0 +1,71 @@
+s3c-adc: Expose number of remaining conversions to convert callback
+
+From: Nelson Castillo <arhuaco@freaks-unidos.net>
+
+This patch allow us to modify the number of remaining
+conversions from the client side. This us useful when we do
+not know in advance how many conversions we will need.
+
+This change is simple enough to be compatible with existing
+code that can just define the new pointer in the callback
+and ignore it.
+
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+ arch/arm/plat-s3c/include/plat/adc.h |    3 ++-
+ arch/arm/plat-s3c24xx/adc.c          |   11 +++++++----
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+
+diff --git a/arch/arm/plat-s3c/include/plat/adc.h b/arch/arm/plat-s3c/include/plat/adc.h
+index ef92e50..d847bd4 100644
+--- a/arch/arm/plat-s3c/include/plat/adc.h
++++ b/arch/arm/plat-s3c/include/plat/adc.h
+@@ -22,7 +22,8 @@ extern int s3c_adc_start(struct s3c_adc_client *client,
+ extern struct s3c_adc_client *
+ 	s3c_adc_register(struct platform_device *pdev,
+ 			 void (*select)(unsigned selected),
+-			 void (*conv)(unsigned d0, unsigned d1),
++			 void (*conv)(unsigned d0, unsigned d1,
++				      unsigned *samples_left),
+ 			 unsigned int is_ts);
+ 
+ extern void s3c_adc_release(struct s3c_adc_client *client);
+diff --git a/arch/arm/plat-s3c24xx/adc.c b/arch/arm/plat-s3c24xx/adc.c
+index adcf160..a9eec95 100644
+--- a/arch/arm/plat-s3c24xx/adc.c
++++ b/arch/arm/plat-s3c24xx/adc.c
+@@ -45,7 +45,8 @@ struct s3c_adc_client {
+ 	unsigned char		 channel;
+ 
+ 	void	(*select_cb)(unsigned selected);
+-	void	(*convert_cb)(unsigned val1, unsigned val2);
++	void	(*convert_cb)(unsigned val1, unsigned val2,
++			      unsigned *samples_left);
+ };
+ 
+ struct adc_device {
+@@ -159,7 +160,8 @@ static void s3c_adc_default_select(unsigned select)
+ 
+ struct s3c_adc_client *s3c_adc_register(struct platform_device *pdev,
+ 					void (*select)(unsigned int selected),
+-					void (*conv)(unsigned d0, unsigned d1),
++					void (*conv)(unsigned d0, unsigned d1,
++						     unsigned *samples_left),
+ 					unsigned int is_ts)
+ {
+ 	struct s3c_adc_client *client;
+@@ -211,9 +213,10 @@ static irqreturn_t s3c_adc_irq(int irq, void *pw)
+ 	data1 = readl(adc->regs + S3C2410_ADCDAT1);
+ 	adc_dbg(adc, "read %d: 0x%04x, 0x%04x\n", client->nr_samples, data0, data1);
+ 
+-	(client->convert_cb)(data0 & 0x3ff, data1 & 0x3ff);
++	client->nr_samples--;
++	(client->convert_cb)(data0 & 0x3ff, data1 & 0x3ff, &client->nr_samples);
+ 
+-	if (--client->nr_samples > 0) {
++	if (client->nr_samples > 0) {
+ 		/* fire another conversion for this */
+ 
+ 		client->select_cb(1);

@@ -1,0 +1,160 @@
+config EGLIBC_VERSION
+	string
+	depends on USE_EGLIBC
+	default "2.6.1"  if EGLIBC_VERSION_2_6
+	default "2.7"    if EGLIBC_VERSION_2_7
+	default "2.8"    if EGLIBC_VERSION_2_8
+	default "2.9"    if EGLIBC_VERSION_2_9
+	default "2.10.2" if EGLIBC_VERSION_2_10
+	default "2.11  " if EGLIBC_VERSION_2_11
+	default "trunk"
+
+if !TOOLCHAINOPTS
+
+	config EGLIBC_VERSION_2_8
+		default y if USE_EGLIBC && !TARGET_loongson2f
+		bool
+
+	config EGLIBC_VERSION_2_11
+		default y if USE_EGLIBC && TARGET_loongson2f
+		bool
+
+	config EGLIBC_REVISION
+		string
+		depends on USE_EGLIBC
+		default "5887"  if EGLIBC_VERSION_2_6
+		default "8588"  if EGLIBC_VERSION_2_7
+		default "8587"  if EGLIBC_VERSION_2_8
+		default "8690"  if EGLIBC_VERSION_2_9
+		default "9289"  if EGLIBC_VERSION_2_10
+		default "9306"  if EGLIBC_VERSION_2_11
+		default "HEAD"  if EGLIBC_VERSION_TRUNK
+		default ""
+
+endif
+
+#################
+# while ./config/Config.in is for TOOLCHAINOPTS option,
+# the below is of !TOOLCHAINOPTS option.
+################
+
+if !TOOLCHAINOPTS
+
+config EGLIBC_OPTION_EGLIBC_ADVANCED_INET6
+	default y
+	select EGLIBC_OPTION_EGLIBC_INET
+
+config EGLIBC_OPTION_EGLIBC_BACKTRACE
+	default y
+
+config EGLIBC_OPTION_EGLIBC_BIG_MACROS
+	default y
+	depends EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_BSD
+	default y
+
+config EGLIBC_OPTION_EGLIBC_CXX_TESTS
+	default y
+	select EGLIBC_OPTION_POSIX_WIDE_CHAR_DEVICE_IO
+	select EGLIBC_OPTION_EGLIBC_LIBM
+
+config EGLIBC_OPTION_EGLIBC_CATGETS
+	default y
+	select EGLIBC_OPTION_EGLIBC_LOCALE_CODE
+
+config EGLIBC_OPTION_EGLIBC_CHARSETS
+	default y
+
+config EGLIBC_OPTION_EGLIBC_DB_ALIASES
+	default y
+
+config EGLIBC_OPTION_EGLIBC_ENVZ
+	default y
+
+config EGLIBC_OPTION_EGLIBC_FCVT
+	default y
+	depends EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_FMTMSG
+	default y
+	depends EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_FSTAB
+	default y
+
+config EGLIBC_OPTION_EGLIBC_FTRAVERSE
+	default y
+	depends EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_GETLOGIN
+	default y
+	select EGLIBC_OPTION_EGLIBC_UTMP
+
+config EGLIBC_OPTION_EGLIBC_INET
+	default y
+
+config EGLIBC_OPTION_EGLIBC_LIBM
+	default y
+
+config EGLIBC_OPTION_EGLIBC_LOCALES
+	default y
+
+config EGLIBC_OPTION_EGLIBC_LOCALE_CODE
+	default y
+	select EGLIBC_OPTION_POSIX_C_LANG_WIDE_CHAR if EGLIBC_VERSION_2_8 || EGLIBC_VERSION_2_9 || EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_MEMUSAGE
+	default y
+	depends EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_EGLIBC_NIS
+	default y
+	select EGLIBC_OPTION_EGLIBC_INET
+	select EGLIBC_OPTION_EGLIBC_SUNRPC
+
+config EGLIBC_OPTION_EGLIBC_NSSWITCH
+	default y
+	select EGLIBC_OPTION_EGLIBC_INET
+
+config EGLIBC_OPTION_EGLIBC_RCMD
+	default y
+	select EGLIBC_OPTION_EGLIBC_INET
+
+config EGLIBC_OPTION_EGLIBC_SPAWN
+	default y
+
+config EGLIBC_OPTION_EGLIBC_STREAMS
+	default y
+
+config EGLIBC_OPTION_EGLIBC_SUNRPC
+	default y
+	select EGLIBC_OPTION_EGLIBC_INET
+
+config EGLIBC_OPTION_EGLIBC_UTMP
+	default y
+
+config EGLIBC_OPTION_EGLIBC_UTMPX
+	default y
+	select EGLIBC_OPTION_EGLIBC_UTMP    
+
+config EGLIBC_OPTION_EGLIBC_WORDEXP
+	default y
+
+config EGLIBC_OPTION_POSIX_C_LANG_WIDE_CHAR
+	default y
+	depends EGLIBC_VERSION_2_8 || EGLIBC_VERSION_2_9 || EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+config EGLIBC_OPTION_POSIX_REGEXP
+	default y
+
+config EGLIBC_OPTION_POSIX_REGEXP_GLIBC
+	default y
+	depends EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+	select EGLIBC_OPTION_POSIX_REGEXP
+
+config EGLIBC_OPTION_POSIX_WIDE_CHAR_DEVICE_IO
+	default y
+	select EGLIBC_OPTION_POSIX_C_LANG_WIDE_CHAR if EGLIBC_VERSION_2_8 || EGLIBC_VERSION_2_9 || EGLIBC_VERSION_2_10 || EGLIBC_VERSION_2_11
+
+endif

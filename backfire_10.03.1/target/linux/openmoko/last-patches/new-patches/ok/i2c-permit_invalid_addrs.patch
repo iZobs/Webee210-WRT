@@ -1,0 +1,23 @@
+We need this stupid workaround since our amplifier chip uses a 'reserved' I2C
+address
+
+Signed-off-by: Harald Welte <laforge@openmoko.org>
+
+Index: linux-2.6.23-rc8/drivers/i2c/i2c-core.c
+===================================================================
+--- linux-2.6.23-rc8.orig/drivers/i2c/i2c-core.c
++++ linux-2.6.23-rc8/drivers/i2c/i2c-core.c
+@@ -967,11 +967,11 @@
+ 	int err;
+ 
+ 	/* Make sure the address is valid */
+-	if (addr < 0x03 || addr > 0x77) {
++	/*if (addr < 0x03 || addr > 0x77) {
+ 		dev_warn(&adapter->dev, "Invalid probe address 0x%02x\n",
+ 			 addr);
+ 		return -EINVAL;
+-	}
++	}*/
+ 
+ 	/* Skip if already in use */
+ 	if (i2c_check_addr(adapter, addr))

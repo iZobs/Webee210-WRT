@@ -1,0 +1,41 @@
+Index: linux-2.6/arch/arm/mach-s3c2410/mach-gta01.c
+===================================================================
+--- linux-2.6.orig/arch/arm/mach-s3c2410/mach-gta01.c
++++ linux-2.6/arch/arm/mach-s3c2410/mach-gta01.c
+@@ -33,6 +33,7 @@
+ #include <linux/workqueue.h>
+ #include <linux/platform_device.h>
+ #include <linux/serial_core.h>
++#include <asm/arch/ts.h>
+ #include <linux/spi/spi.h>
+ #include <linux/spi/spi_bitbang.h>
+ #include <linux/mmc/mmc.h>
+@@ -362,6 +363,7 @@
+ 	&s3c_device_sdi,
+ 	&s3c_device_usbgadget,
+ 	&s3c_device_nand,
++	&s3c_device_ts,
+ };
+ 
+ static struct s3c2410_nand_set gta01_nand_sets[] = {
+@@ -433,6 +435,12 @@
+ 	.vbus_draw	= gta01_udc_vbus_draw,
+ };
+ 
++static struct s3c2410_ts_mach_info gta01_ts_cfg = {
++	.delay = 10000,
++	.presc = 65,
++	.oversampling_shift = 5,
++};
++
+ /* SPI */
+ 
+ static struct spi_board_info gta01_spi_board_info[] __initdata = {
+@@ -598,6 +606,7 @@
+ 
+ 	INIT_WORK(&gta01_udc_vbus_drawer.work, __gta01_udc_vbus_draw);
+ 	s3c24xx_udc_set_platdata(&gta01_udc_cfg);
++	set_s3c2410ts_info(&gta01_ts_cfg);
+ 
+ 	/* Set LCD_RESET / XRES to high */
+ 	s3c2410_gpio_cfgpin(S3C2410_GPC6, S3C2410_GPIO_OUTPUT);

@@ -1,0 +1,29 @@
+ 
+diff -Nru linux-2.6.36/drivers/mmc/host/sdhci.c linux-2.6.36-Firendyarm/drivers/mmc/host/sdhci.c
+--- linux-2.6.36/drivers/mmc/host/sdhci.c	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/mmc/host/sdhci.c	2010-10-28 10:31:24.000000000 +0100
+@@ -1826,8 +1826,11 @@
+ 	if (caps & SDHCI_CAN_DO_HISPD)
+ 		mmc->caps |= MMC_CAP_SD_HIGHSPEED;
+ 
++	/* It's not a good assumption, disable it for s3c6410 */
++#ifndef CONFIG_MACH_MINI6410
+ 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+ 		mmc->caps |= MMC_CAP_NEEDS_POLL;
++#endif
+ 
+ 	mmc->ocr_avail = 0;
+ 	if (caps & SDHCI_CAN_VDD_330)
+diff -Nru linux-2.6.36/drivers/mmc/host/sdhci-s3c.c linux-2.6.36-Firendyarm/drivers/mmc/host/sdhci-s3c.c
+--- linux-2.6.36/drivers/mmc/host/sdhci-s3c.c	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/mmc/host/sdhci-s3c.c	2010-10-28 10:31:24.000000000 +0100
+@@ -421,6 +421,9 @@
+ 	if (pdata->cd_type == S3C_SDHCI_CD_PERMANENT)
+ 		host->mmc->caps = MMC_CAP_NONREMOVABLE;
+ 
++	if (pdata->host_caps & MMC_CAP_NEEDS_POLL)
++		host->mmc->caps = MMC_CAP_NEEDS_POLL;
++
+ 	host->quirks |= (SDHCI_QUIRK_32BIT_DMA_ADDR |
+ 			 SDHCI_QUIRK_32BIT_DMA_SIZE);
+ 

@@ -1,0 +1,57 @@
+
+if VIDEO_FIMC
+comment "FIMC configurations"
+endif
+
+config VIDEO_FIMC
+	bool "Samsung Camera Interface (FIMC) driver"
+	depends on VIDEO_SAMSUNG && (ARCH_S3C64XX || ARCH_S5PC1XX)
+	default n
+	---help---
+	  This is a video4linux driver for Samsung FIMC device.
+
+config VIDEO_FIMC_DEBUG
+	bool "FIMC driver debug messages"
+	depends on VIDEO_FIMC
+
+config VIDEO_FIMC_MIPI
+	bool "FIMC works with MIPI-CSI2 (Rx)"
+	depends on VIDEO_FIMC && ARCH_S5PC1XX
+
+source "drivers/media/video/samsung/fimc/Kconfig-camera"
+
+choice
+depends on OV965X
+prompt "Select source resolution"
+default OV965X_VGA
+config OV965X_VGA
+	bool "VGA(640X480)"
+	---help---
+	LIYUTAI OV965X camera module support.
+
+config OV965X_QVGA
+	bool "QVGA(320X240)"
+	---help---
+	LIYUTAI OV965X camera module support.
+
+config OV965X_SVGA
+	bool "SVGA(800X600)"
+	---help---
+	LIYUTAI OV965X camera module support.
+
+config OV965X_SXGA
+	bool "SXGA(1280X1024)"
+	---help---
+	LIYUTAI OV965X camera module support.
+endchoice
+
+config VIDEO_FIMC_CAM_CH
+	int "External Camera channel (0=A, 1=B)"
+	depends on VIDEO_FIMC
+	default "0"
+
+config VIDEO_FIMC_CAM_RESET
+	int "Reset Type (0=low, 1=high)"
+	depends on VIDEO_FIMC
+	default "0"
+

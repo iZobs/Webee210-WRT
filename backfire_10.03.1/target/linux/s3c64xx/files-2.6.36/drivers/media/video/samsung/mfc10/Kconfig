@@ -1,0 +1,15 @@
+#
+# Configuration for Multi Format Codecs (MFC)
+#
+
+config VIDEO_MFC10
+	bool "Samsung FIMV V1.0 - MFC (Multi Format Codec) Driver" 
+	depends on VIDEO_SAMSUNG && (CPU_S3C6410 || CPU_S3C6400)
+	default n
+	---help---
+	  This is a Multi Format Codecs (MFC) driver for Samsung S3C6400 and s3C6410.
+
+config VIDEO_MFC_DEBUG
+	bool "print MFC debug message"
+	depends on VIDEO_MFC10
+	default n

@@ -1,0 +1,102 @@
+diff -Nur linux-2.6.32.33/sound/core/pcm_native.c linux-2.6.32.33-loongson2f/sound/core/pcm_native.c
+--- linux-2.6.32.33/sound/core/pcm_native.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/core/pcm_native.c	2011-03-26 03:39:49.000000000 +0800
+@@ -3091,7 +3091,11 @@
+ 			return VM_FAULT_SIGBUS;
+ 	} else {
+ 		vaddr = runtime->dma_area + offset;
++#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
++		page = virt_to_page(CAC_ADDR(vaddr));
++#else
+ 		page = virt_to_page(vaddr);
++#endif
+ 	}
+ 	get_page(page);
+ 	vmf->page = page;
+@@ -3206,6 +3210,11 @@
+ 	if (PCM_RUNTIME_CHECK(substream))
+ 		return -ENXIO;
+ 
++#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
++	/* all mmap using uncached mode */
++	area->vm_page_prot = pgprot_noncached(area->vm_page_prot);
++	area->vm_flags |= (VM_RESERVED | VM_IO);
++#endif
+ 	offset = area->vm_pgoff << PAGE_SHIFT;
+ 	switch (offset) {
+ 	case SNDRV_PCM_MMAP_OFFSET_STATUS:
+diff -Nur linux-2.6.32.33/sound/core/sgbuf.c linux-2.6.32.33-loongson2f/sound/core/sgbuf.c
+--- linux-2.6.32.33/sound/core/sgbuf.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/core/sgbuf.c	2011-03-26 03:39:49.000000000 +0800
+@@ -114,7 +114,11 @@
+ 			if (!i)
+ 				table->addr |= chunk; /* mark head */
+ 			table++;
++#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
++			*pgtable++ = virt_to_page(CAC_ADDR(tmpb.area));
++#else
+ 			*pgtable++ = virt_to_page(tmpb.area);
++#endif
+ 			tmpb.area += PAGE_SIZE;
+ 			tmpb.addr += PAGE_SIZE;
+ 		}
+@@ -125,7 +129,12 @@
+ 	}
+ 
+ 	sgbuf->size = size;
++#if defined(__mips__) && defined(CONFIG_DMA_NONCOHERENT)
++	dmab->area = vmap(sgbuf->page_table, sgbuf->pages, \
++			VM_MAP | VM_IO, pgprot_noncached(PAGE_KERNEL));
++#else
+ 	dmab->area = vmap(sgbuf->page_table, sgbuf->pages, VM_MAP, PAGE_KERNEL);
++#endif
+ 	if (! dmab->area)
+ 		goto _failed;
+ 	if (res_size)
+diff -Nur linux-2.6.32.33/sound/oss/au1550_ac97.c linux-2.6.32.33-loongson2f/sound/oss/au1550_ac97.c
+--- linux-2.6.32.33/sound/oss/au1550_ac97.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/oss/au1550_ac97.c	2011-03-26 03:39:49.000000000 +0800
+@@ -614,7 +614,8 @@
+ 	/* Put two buffers on the ring to get things started.
+ 	*/
+ 	for (i=0; i<2; i++) {
+-		au1xxx_dbdma_put_dest(db->dmanr, db->nextIn, db->dma_fragsize);
++		au1xxx_dbdma_put_dest(db->dmanr, virt_to_phys(db->nextIn),
++				db->dma_fragsize, DDMA_FLAGS_IE);
+ 
+ 		db->nextIn += db->dma_fragsize;
+ 		if (db->nextIn >= db->rawbuf + db->dmasize)
+@@ -732,8 +733,9 @@
+ 	db->dma_qcount--;
+ 
+ 	if (db->count >= db->fragsize) {
+-		if (au1xxx_dbdma_put_source(db->dmanr, db->nextOut,
+-							db->fragsize) == 0) {
++		if (au1xxx_dbdma_put_source(db->dmanr,
++				virt_to_phys(db->nextOut), db->fragsize,
++				DDMA_FLAGS_IE) == 0) {
+ 			err("qcount < 2 and no ring room!");
+ 		}
+ 		db->nextOut += db->fragsize;
+@@ -777,7 +779,8 @@
+ 
+ 	/* Put a new empty buffer on the destination DMA.
+ 	*/
+-	au1xxx_dbdma_put_dest(dp->dmanr, dp->nextIn, dp->dma_fragsize);
++	au1xxx_dbdma_put_dest(dp->dmanr, virt_to_phys(dp->nextIn),
++			      dp->dma_fragsize, DDMA_FLAGS_IE);
+ 
+ 	dp->nextIn += dp->dma_fragsize;
+ 	if (dp->nextIn >= dp->rawbuf + dp->dmasize)
+@@ -1177,8 +1180,9 @@
+ 		 * we know the dma has stopped.
+ 		 */
+ 		while ((db->dma_qcount < 2) && (db->count >= db->fragsize)) {
+-			if (au1xxx_dbdma_put_source(db->dmanr, db->nextOut,
+-							db->fragsize) == 0) {
++			if (au1xxx_dbdma_put_source(db->dmanr,
++				virt_to_phys(db->nextOut), db->fragsize,
++				DDMA_FLAGS_IE) == 0) {
+ 				err("qcount < 2 and no ring room!");
+ 			}
+ 			db->nextOut += db->fragsize;

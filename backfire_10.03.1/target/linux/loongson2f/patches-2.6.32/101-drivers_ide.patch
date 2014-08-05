@@ -1,0 +1,70 @@
+diff -Nur linux-2.6.32.33/drivers/ide/au1xxx-ide.c linux-2.6.32.33-loongson2f/drivers/ide/au1xxx-ide.c
+--- linux-2.6.32.33/drivers/ide/au1xxx-ide.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/ide/au1xxx-ide.c	2011-03-26 03:39:49.000000000 +0800
+@@ -56,8 +56,8 @@
+ 	chan_tab_t *ctp;
+ 	au1x_ddma_desc_t *dp;
+ 
+-	if(!put_dest_flags(ahwif->rx_chan, (void*)addr, count << 1, 
+-			   DDMA_FLAGS_NOIE)) {
++	if (!au1xxx_dbdma_put_dest(ahwif->rx_chan, virt_to_phys(addr),
++				   count << 1, DDMA_FLAGS_NOIE)) {
+ 		printk(KERN_ERR "%s failed %d\n", __func__, __LINE__);
+ 		return;
+ 	}
+@@ -74,8 +74,8 @@
+ 	chan_tab_t *ctp;
+ 	au1x_ddma_desc_t *dp;
+ 
+-	if(!put_source_flags(ahwif->tx_chan, (void*)addr,
+-			     count << 1, DDMA_FLAGS_NOIE)) {
++	if (!au1xxx_dbdma_put_source(ahwif->tx_chan, virt_to_phys(addr),
++				     count << 1, DDMA_FLAGS_NOIE)) {
+ 		printk(KERN_ERR "%s failed %d\n", __func__, __LINE__);
+ 		return;
+ 	}
+@@ -246,17 +246,14 @@
+ 				flags = DDMA_FLAGS_NOIE;
+ 
+ 			if (iswrite) {
+-				if(!put_source_flags(ahwif->tx_chan, 
+-						     (void*) sg_virt(sg),
+-						     tc, flags)) { 
++				if (!au1xxx_dbdma_put_source(ahwif->tx_chan,
++					sg_phys(sg), tc, flags)) {
+ 					printk(KERN_ERR "%s failed %d\n", 
+ 					       __func__, __LINE__);
+ 				}
+-			} else 
+-			{
+-				if(!put_dest_flags(ahwif->rx_chan, 
+-						   (void*) sg_virt(sg),
+-						   tc, flags)) { 
++			} else  {
++				if (!au1xxx_dbdma_put_dest(ahwif->rx_chan,
++					sg_phys(sg), tc, flags)) {
+ 					printk(KERN_ERR "%s failed %d\n", 
+ 					       __func__, __LINE__);
+ 				}
+diff -Nur linux-2.6.32.33/drivers/ide/ide-iops.c linux-2.6.32.33-loongson2f/drivers/ide/ide-iops.c
+--- linux-2.6.32.33/drivers/ide/ide-iops.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/ide/ide-iops.c	2011-03-26 03:39:49.000000000 +0800
+@@ -27,6 +27,8 @@
+ #include <asm/uaccess.h>
+ #include <asm/io.h>
+ 
++#include <asm/bootinfo.h>
++
+ void SELECT_MASK(ide_drive_t *drive, int mask)
+ {
+ 	const struct ide_port_ops *port_ops = drive->hwif->port_ops;
+@@ -300,6 +302,9 @@
+ {
+ 	const char **list, *m = (char *)&drive->id[ATA_ID_PROD];
+ 
++	if (mips_machtype != MACH_LEMOTE_YL2F89)
++		return;
++
+ 	for (list = nien_quirk_list; *list != NULL; list++)
+ 		if (strstr(m, *list) != NULL) {
+ 			drive->dev_flags |= IDE_DFLAG_NIEN_QUIRK;

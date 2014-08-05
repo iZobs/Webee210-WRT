@@ -1,0 +1,35 @@
+The initialization of clocks uses mutexes, but we execute the resume in
+an interrupt context. We therefore have to hand this task to a non-interrupt.
+
+Adapted from a patch by Andy Green.
+
+Index: linux-2.6.24/arch/arm/plat-s3c24xx/time.c
+===================================================================
+--- linux-2.6.24.orig/arch/arm/plat-s3c24xx/time.c
++++ linux-2.6.24/arch/arm/plat-s3c24xx/time.c
+@@ -255,8 +255,24 @@ static void __init s3c2410_timer_init (v
+ 	setup_irq(IRQ_TIMER4, &s3c2410_timer_irq);
+ }
+ 
++static void s3c2410_timer_resume_work(struct work_struct *work)
++{
++	s3c2410_timer_setup();
++}
++
++static void s3c2410_timer_resume(void)
++{
++	static DECLARE_WORK(work, s3c2410_timer_resume_work);
++	int res;
++
++	res = schedule_work(&work);
++	if (!res)
++		printk(KERN_ERR
++		    "s3c2410_timer_resume_work already queued ???\n");
++}
++
+ struct sys_timer s3c24xx_timer = {
+ 	.init		= s3c2410_timer_init,
+ 	.offset		= s3c2410_gettimeoffset,
+-	.resume		= s3c2410_timer_setup
++	.resume		= s3c2410_timer_resume,
+ };

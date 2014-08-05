@@ -1,0 +1,83 @@
+
+	About Loongson
+
+		author: falcon <wuzhangjin@gmail.com>
+		update: Mon Nov 23 13:56:47 CST 2009
+
+1. Loongson
+
+Loongson is a family of general-purpose MIPS(el, little endian)-compatible CPUs
+developed at Institute of Computing Technology (ICT), Chinese Academy of
+Sciences (CAS) in the People's Republic of China.
+
+Home: http://www.loongson.cn
+
+2. Lemote
+
+Lemote Inc. is the first and authoritative company made loongson2 family
+machines. The products include FuLoong-2E mini PC, FuLoong-2F mini PC,
+YeeLoong-2F laptop/netbook, Network Attached System and LynLoong ALLINONE
+machine.
+
+Home: http://www.lemote.com/english
+Products: http://www.lemote.com/english/products.html
+Dev-Home: http://dev.lemote.com/, http://dev.lemote.com/code/
+
+3. Discussion
+
+http://groups.google.com/group/loongson-dev?hl=en
+
+http://www.lemote.com/bbs/forumdisplay.php?fid=48&page=1&styleid=7
+
+4. Resources
+
+4.1 Kernel
+
+	For Lemote Products:
+
+	http://dev.lemote.com/code/linux_loongson (used in products)
+	http://dev.lemote.com/code/rt4ls (for upstream & real time support)
+
+	For Dexxon Gdium:
+
+	git://git.linux-cisco.org/linux-mips.git
+
+4.2 BIOS & Bootloader: PMON
+
+	For Lemote Products:
+
+	http://dev.lemote.com/cgit/pmon.git
+
+	For Dexxon Gdium:
+
+	http://dev.lemote.com/code/pmon-gdium
+
+4.3 ToolChains
+
+You are recommended to use the latest Gcc 4.4 for which provides the loongson
+specific support. and also, a binutils patch is needed for loongson2f:
+https://groups.google.com/group/archlinux-for-loongson/web/binutils-2.19.1-loongson2f-3.patch
+
+4.4 Distributions
+
+Theoretically, all distributions support MIPS is available to loongson family
+machines, but currently, only Debian, gNewSense and Mandriva provide specific
+support for loongson.
+
+	Debian:
+		From Lemote:
+
+		deb http://dev.lemote.com/debian lenny main contrib non-free
+		deb http://dev.lemote.com/debian-loongson loongson main
+
+		From BJLX.org.cn:
+
+		deb http://www.bjlx.org.cn/debian testing main contrib non-free
+
+	gNewSense:
+
+		http://www.gnewsense.org/static/homepage/
+
+5. References
+
+https://groups.google.com/group/archlinux-for-loongson/web/loongson

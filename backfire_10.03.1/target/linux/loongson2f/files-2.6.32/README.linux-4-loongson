@@ -1,0 +1,155 @@
+
+	About Linux For Loongson
+
+		author: falcon <wuzhangjin@gmail.com>
+		update: Mon Nov 23 13:56:47 CST 2009
+
+(This file is only for linux 2.6.32 and later version)
+
+1. Loongson
+
+Please refer to README.loongson
+
+2. Lemote
+
+Please refer to README.loongson
+
+3. Linux for Loongson
+
+3.1 Introduction
+
+This git repository: git://dev.lemote.com/rt4ls.git is maintained by "Wu
+Zhangjin" <wuzhangjin@gmail.com>, and plan to support all of the loongson
+family machines, but now, it only support parts of them. and the main aim of
+this git repository is pushing the loongson support into the mainline.
+
+Supported(made by Lemote):
+
+	FuLoong-2E Mini PC
+	FuLoong-2F Mini PC
+	MengLoong-2F(7'') netbook
+	YeeLoong-2F(8.9'',10'') netbook
+	Network Attached System
+	LynLoong ALLINONE machine
+
+plan to Support:
+
+	Gdium
+
+3.2 Configuration
+
+default config file for the supported machines:
+
+FuLoong-2E Mini PC: arch/mips/configs/fuloong2e_defconfig
+All Lemote 2F family machines: arch/mips/configs/lemote2f_defconfig
+
+$ cp /path/to/xxxx_defconfig .
+$ make menuconfig
+
+3.3 Compiling
+
+Local compiling
+
+$ make -j2
+
+Cross Compiling
+
+Download existing Toolchains
+
+Gcc 3.4.6: http://www.lemote.com/upfiles/gcc-3.4.6-newbin.tar.gz
+Gcc 4.3: http://www.lemote.com/upfiles/gcc-4.3-cross-loongson.tar.gz
+Gcc 4.4: ftp://mirror.lzu.edu.cn/software/loongson/toolchain/gcc-4.4-cross-toolchain-loongson2f.tar.gz
+
+build your own
+
+CLFS: http://cross-lfs.org/view/svn/mips/cross-tools/chapter.html
+Gentoo: http://www.lemote.com/bbs/viewthread.php?tid=5530&highlight=gentoo
+Distcc: http://rostedt.homelinux.com/distcc/index-mips.html
+
+Compile it
+
+$ make -j2 ARCH=mips CROSS_COMPILE=<prefix>-
+
+Installation
+
+Create a directory for installation
+
+$ mkdir linux-loongson
+
+Install modules and images
+
+$ make modules_install INSTALL_MOD_PATH=/path/to/linux-loongson/
+$ make install INSTALL_PATH=/path/to/linux-loongson/
+
+Copy Images to /boot/
+
+Copy modules to /lib/modules/<linux-verion>/
+
+Create an kernel entry in /boot/boot.cfg
+
+And If you are using an old PMON, a new kernel command line argument is need to
+add for your machine, here is the list:
+
+						OR
+	machtype=lemote-fuloong-2e-box 			2e-box
+	machtype=lemote-fuloong-2f-box			2f-box
+	machtype=lemote-mengloong-2f-7inches		7
+	machtype=lemote-yeeloong-2f-8.9inches		8.9
+	machtype=lemote-nas-2f				nas
+	machtype=lemote-lynloong-2f			lynloong
+
+4. Status
+
+4.1 FuLoong-2E Mini PC
+
+This support have been merged into mainline.
+
+4.2 Lemote-2F family machines
+
+The support will be available from mainline 2.6.33
+
+4.3 Dexxon Gidum
+
+This support is available here:
+
+git://git.linux-cisco.org/linux-mips.git
+
+5. More
+
+5.1 Linux for YeeLoong
+
+5.1.1 Configuration for YeeLoong netbook
+
+CPUFreq Support
+
+	CONFIG_CS5536_MFGPT
+	CONFIG_LOONGSON2_CPUFREQ
+
+STD Support
+
+	CONFIG_PM
+	CONFIG_HIBERNATION
+	CONFIG_PM_STD_PARTITION="<Your Swap Partition>"
+
+STR Support
+
+	CONFIG_PM
+	CONFIG_SUSPEND
+
+YeeLoong Platform Specific Support
+
+	CONFIG_APM_EMULATION	(battery management)
+	CONFIG_LEMOTE_YEELOONG2F_PDEV	(backlight, hotkey, lm-sensors...)
+
+RTL8187B wifi driver:
+
+	CONFIG_RTL8187B
+
+SM712 video driver:
+
+	CONFIG_FB_SM7XX
+
+5.1.2 Known Issues
+
+The wifi driver can not survive after resuming from STD, but can survive from
+STR.

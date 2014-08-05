@@ -1,0 +1,76 @@
+config VIDEO_SAMSUNG
+	bool "Samsung Multimedia Devices"
+	depends on VIDEO_CAPTURE_DRIVERS && VIDEO_V4L2
+	select VIDEO_FIXED_MINOR_RANGES
+	default n
+	---help---
+	  This is a representative video4linux configuration for Samsung multimedia devices.
+
+source "drivers/media/video/samsung/fimc/Kconfig"
+source "drivers/media/video/samsung/post/Kconfig"
+
+if CPU_S3C6410
+source "drivers/media/video/samsung/mfc10/Kconfig"
+source "drivers/media/video/samsung/jpeg/Kconfig"
+endif
+
+if CPU_S5PC100
+source "drivers/media/video/samsung/mfc40/Kconfig"
+source "drivers/media/video/samsung/jpeg_v2/Kconfig"
+endif
+
+source "drivers/media/video/samsung/tv/Kconfig"
+source "drivers/media/video/samsung/rotator/Kconfig"
+source "drivers/media/video/samsung/g2d/Kconfig"
+source "drivers/media/video/samsung/g3d/Kconfig"
+source "drivers/media/video/samsung/cmm/Kconfig"
+
+if VIDEO_SAMSUNG
+
+comment "Reserved memory configurations"
+
+config VIDEO_SAMSUNG_MEMSIZE_FIMC
+	int "Memory size in kbytes for FIMC"
+	depends on VIDEO_FIMC
+	default "10240"
+
+config VIDEO_SAMSUNG_MEMSIZE_POST
+	int "Memory size in kbytes for Post Processor"
+	depends on VIDEO_POST
+	default "8192"
+
+config VIDEO_SAMSUNG_MEMSIZE_TV
+	int "Memory size in kbytes for TV"
+	depends on VIDEO_TV
+	default "8192"
+
+if CPU_S3C6410
+config VIDEO_SAMSUNG_MEMSIZE_MFC
+	int "Memory size in kbytes for MFC"
+	depends on VIDEO_MFC10
+	default "6144"
+
+config VIDEO_SAMSUNG_MEMSIZE_JPEG
+	int "Memory size in kbytes for JPEG"
+	depends on VIDEO_JPEG 
+	default "4096"
+endif
+
+if ARCH_S5PC1XX
+config VIDEO_SAMSUNG_MEMSIZE_MFC
+	int "Memory size in kbytes for MFC"
+	depends on VIDEO_MFC40
+	default "32768"
+
+config VIDEO_SAMSUNG_MEMSIZE_JPEG
+	int "Memory size in kbytes for JPEG"
+	depends on VIDEO_JPEG_V2 
+	default "32768"
+endif
+
+config VIDEO_SAMSUNG_MEMSIZE_CMM
+	int "Memory size in kbytes for CMM"
+	depends on VIDEO_CMM && CPU_S3C6410
+	default "0"
+endif
+

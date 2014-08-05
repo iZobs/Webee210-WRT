@@ -1,0 +1,129 @@
+MTD: S3C24XX large page NAND support
+
+This adds support for using large page NAND devices
+with the S3C24XX NAND controller. This also adds the 
+file Documentation/arm/Samsung-S3C24XX/NAND.txt to
+describe the differences.
+
+Signed-off-by: Ben Dooks <ben-linux@fluff.org>
+
+Index: linux-2.6.21.3-moko/drivers/mtd/nand/s3c2410.c
+===================================================================
+--- linux-2.6.21.3-moko.orig/drivers/mtd/nand/s3c2410.c
++++ linux-2.6.21.3-moko/drivers/mtd/nand/s3c2410.c
+@@ -473,7 +473,7 @@
+ 	ecc_code[1] = ecc >> 8;
+ 	ecc_code[2] = ecc >> 16;
+ 
+-	pr_debug("%s: returning ecc %06lx\n", __func__, ecc);
++	pr_debug("%s: returning ecc %06lx\n", __func__, ecc & 0xffffff);
+ 
+ 	return 0;
+ }
+@@ -648,9 +648,6 @@
+ 		chip->ecc.calculate = s3c2410_nand_calculate_ecc;
+ 		chip->ecc.correct   = s3c2410_nand_correct_data;
+ 		chip->ecc.mode	    = NAND_ECC_HW;
+-		chip->ecc.size	    = 512;
+-		chip->ecc.bytes	    = 3;
+-		chip->ecc.layout    = &nand_hw_eccoob;
+ 
+ 		switch (info->cpu_type) {
+ 		case TYPE_S3C2410:
+@@ -674,6 +671,34 @@
+ 	}
+ }
+ 
++/* s3c2410_nand_update_chip
++ *
++ * post-probe chip update, to change any items, such as the
++ * layout for large page nand
++ */
++
++static void s3c2410_nand_update_chip(struct s3c2410_nand_info *info,
++				     struct s3c2410_nand_mtd *nmtd)
++{
++	struct nand_chip *chip = &nmtd->chip;
++
++	printk("%s: chip %p: %d\n", __func__, chip, chip->page_shift);
++
++	if (hardware_ecc) {
++		/* change the behaviour depending on wether we are using
++		 * the large or small page nand device */
++
++		if (chip->page_shift > 10) {
++			chip->ecc.size	    = 256;
++			chip->ecc.bytes	    = 3;
++		} else {
++			chip->ecc.size	    = 512;
++			chip->ecc.bytes	    = 3;
++			chip->ecc.layout    = &nand_hw_eccoob;
++		}
++	}
++}
++
+ /* s3c2410_nand_probe
+  *
+  * called by device layer when it finds a device matching
+@@ -780,9 +805,12 @@
+ 
+ 		s3c2410_nand_init_chip(info, nmtd, sets);
+ 
+-		nmtd->scan_res = nand_scan(&nmtd->mtd, (sets) ? sets->nr_chips : 1);
++		nmtd->scan_res = nand_scan_ident(&nmtd->mtd,
++						 (sets) ? sets->nr_chips : 1);
+ 
+ 		if (nmtd->scan_res == 0) {
++			s3c2410_nand_update_chip(info, nmtd);
++			nand_scan_tail(&nmtd->mtd);
+ 			s3c2410_nand_add_partition(info, nmtd, sets);
+ 		}
+ 
+Index: linux-2.6.21.3-moko/Documentation/arm/Samsung-S3C24XX/NAND.txt
+===================================================================
+--- /dev/null
++++ linux-2.6.21.3-moko/Documentation/arm/Samsung-S3C24XX/NAND.txt
+@@ -0,0 +1,30 @@
++			S3C24XX NAND Support
++			====================
++
++Introduction
++------------
++
++Small Page NAND
++---------------
++
++The driver uses a 512 byte (1 page) ECC code for this setup. The
++ECC code is not directly compatible with the default kernel ECC
++code, so the driver enforces its own OOB layout and ECC parameters
++
++Large Page NAND
++---------------
++
++The driver is capable of handling NAND flash with a 2KiB page
++size, with support for hardware ECC generation and correction.
++
++Unlike the 512byte page mode, the driver generates ECC data for
++each 256 byte block in an 2KiB page. This means that more than
++one error in a page can be rectified. It also means that the
++OOB layout remains the default kernel layout for these flashes.
++
++
++Document Author
++---------------
++
++Ben Dooks, Copyright 2007 Simtec Electronics
++
+Index: linux-2.6.21.3-moko/Documentation/arm/Samsung-S3C24XX/Overview.txt
+===================================================================
+--- linux-2.6.21.3-moko.orig/Documentation/arm/Samsung-S3C24XX/Overview.txt
++++ linux-2.6.21.3-moko/Documentation/arm/Samsung-S3C24XX/Overview.txt
+@@ -156,6 +156,8 @@
+   controller. If there are any problems the latest linux-mtd
+   code can be found from http://www.linux-mtd.infradead.org/
+ 
++  For more information see Documentation/arm/Samsung-S3C24XX/NAND.txt
++
+ 
+ Serial
+ ------

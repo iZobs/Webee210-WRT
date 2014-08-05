@@ -1,0 +1,25 @@
+diff -Nur linux-2.6.32.33/drivers/rtc/rtc-cmos.c linux-2.6.32.33-loongson2f/drivers/rtc/rtc-cmos.c
+--- linux-2.6.32.33/drivers/rtc/rtc-cmos.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/rtc/rtc-cmos.c	2011-03-26 03:39:49.000000000 +0800
+@@ -692,7 +692,8 @@
+ 	 */
+ #if	defined(CONFIG_ATARI)
+ 	address_space = 64;
+-#elif defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__sparc__)
++#elif defined(__i386__) || defined(__x86_64__) || defined(__arm__) \
++			|| defined(__sparc__) || defined(__mips__)
+ 	address_space = 128;
+ #else
+ #warning Assuming 128 bytes of RTC+NVRAM address space, not 64 bytes.
+@@ -758,9 +759,8 @@
+ 	/* FIXME teach the alarm code how to handle binary mode;
+ 	 * <asm-generic/rtc.h> doesn't know 12-hour mode either.
+ 	 */
+-	if (is_valid_irq(rtc_irq) &&
+-	    (!(rtc_control & RTC_24H) || (rtc_control & (RTC_DM_BINARY)))) {
+-		dev_dbg(dev, "only 24-hr BCD mode supported\n");
++	if (is_valid_irq(rtc_irq) && !(rtc_control & RTC_24H)) {
++		dev_dbg(dev, "only 24-hr supported\n");
+ 		retval = -ENXIO;
+ 		goto cleanup1;
+ 	}

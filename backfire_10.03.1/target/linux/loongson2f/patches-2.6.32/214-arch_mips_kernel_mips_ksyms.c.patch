@@ -1,0 +1,18 @@
+--- linux-2.6.32.33/arch/mips/kernel/mips_ksyms.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/mips_ksyms.c	2011-03-26 03:39:49.000000000 +0800
+@@ -13,6 +13,7 @@
+ #include <asm/checksum.h>
+ #include <asm/pgtable.h>
+ #include <asm/uaccess.h>
++#include <asm/ftrace.h>
+ 
+ extern void *__bzero(void *__s, size_t __count);
+ extern long __strncpy_from_user_nocheck_asm(char *__to,
+@@ -51,3 +52,7 @@
+ EXPORT_SYMBOL(__csum_partial_copy_user);
+ 
+ EXPORT_SYMBOL(invalid_pte_table);
++#ifdef CONFIG_FUNCTION_TRACER
++/* _mcount is defined in arch/mips/kernel/mcount.S */
++EXPORT_SYMBOL(_mcount);
++#endif

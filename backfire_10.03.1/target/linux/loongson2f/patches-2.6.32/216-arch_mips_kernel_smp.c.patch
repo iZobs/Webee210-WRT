@@ -1,0 +1,19 @@
+--- linux-2.6.32.33/arch/mips/kernel/smp.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/smp.c	2011-03-26 03:39:49.000000000 +0800
+@@ -32,6 +32,7 @@
+ #include <linux/cpumask.h>
+ #include <linux/cpu.h>
+ #include <linux/err.h>
++#include <linux/ftrace.h>
+ 
+ #include <asm/atomic.h>
+ #include <asm/cpu.h>
+@@ -130,7 +131,7 @@
+ /*
+  * Call into both interrupt handlers, as we share the IPI for them
+  */
+-void smp_call_function_interrupt(void)
++void __irq_entry smp_call_function_interrupt(void)
+ {
+ 	irq_enter();
+ 	generic_smp_call_function_single_interrupt();

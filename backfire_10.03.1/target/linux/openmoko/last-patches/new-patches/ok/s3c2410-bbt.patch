@@ -1,0 +1,43 @@
+[PATCH] Add Kconfig option to enable NAND bad-block-table support for s3c2410
+
+This patch adds a new CONFIG_MTD_NAND_S3C2410_BBT which, if enabled,
+asks the mtd NAND core to use a bad-block table.
+
+Signed-off-by: Harald Welte <laforge@openmoko.org>
+
+Index: linux-2.6/drivers/mtd/nand/s3c2410.c
+===================================================================
+--- linux-2.6.orig/drivers/mtd/nand/s3c2410.c
++++ linux-2.6/drivers/mtd/nand/s3c2410.c
+@@ -612,9 +612,13 @@
+ 	chip->select_chip  = s3c2410_nand_select_chip;
+ 	chip->chip_delay   = 50;
+ 	chip->priv	   = nmtd;
+-	chip->options	   = 0;
+ 	chip->controller   = &info->controller;
+ 
++	if (set->flags & S3C2410_NAND_BBT)
++		chip->options	   = NAND_USE_FLASH_BBT;
++	else
++		chip->options	   = 0;
++
+ 	switch (info->cpu_type) {
+ 	case TYPE_S3C2410:
+ 		chip->IO_ADDR_W = regs + S3C2410_NFDATA;
+Index: linux-2.6/include/asm-arm/plat-s3c/nand.h
+===================================================================
+--- linux-2.6.orig/include/asm-arm/plat-s3c/nand.h
++++ linux-2.6/include/asm-arm/plat-s3c/nand.h
+@@ -21,9 +21,12 @@
+  * partitions	 = mtd partition list
+ */
+ 
++#define S3C2410_NAND_BBT	0x0001
++
+ struct s3c2410_nand_set {
+ 	int			nr_chips;
+ 	int			nr_partitions;
++	unsigned int		flags;
+ 	char			*name;
+ 	int			*nr_map;
+ 	struct mtd_partition	*partitions;

@@ -1,0 +1,61 @@
+Index: linux-2.6.23-rc8/drivers/net/Kconfig
+===================================================================
+--- linux-2.6.23-rc8.orig/drivers/net/Kconfig
++++ linux-2.6.23-rc8/drivers/net/Kconfig
+@@ -1322,7 +1322,7 @@
+ 
+ config NET_PCI
+ 	bool "EISA, VLB, PCI and on board controllers"
+-	depends on ISA || EISA || PCI
++	depends on ISA || EISA || PCI || MACH_QT2410
+ 	help
+ 	  This is another class of network cards which attach directly to the
+ 	  bus. If you have one of those, say Y and read the Ethernet-HOWTO,
+@@ -1496,7 +1496,7 @@
+ 
+ config CS89x0
+ 	tristate "CS89x0 support"
+-	depends on NET_PCI && (ISA || MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X)
++	depends on NET_PCI && (ISA || MACH_IXDP2351 || ARCH_IXDP2X01 || ARCH_PNX010X || MACH_QT2410)
+ 	---help---
+ 	  Support for CS89x0 chipset based Ethernet cards. If you have a
+ 	  network (Ethernet) card of this type, say Y and read the
+Index: linux-2.6.23-rc8/drivers/net/cs89x0.c
+===================================================================
+--- linux-2.6.23-rc8.orig/drivers/net/cs89x0.c
++++ linux-2.6.23-rc8/drivers/net/cs89x0.c
+@@ -194,6 +194,10 @@
+ #define CIRRUS_DEFAULT_IRQ	VH_INTC_INT_NUM_CASCADED_INTERRUPT_1 /* Event inputs bank 1 - ID 35/bit 3 */
+ static unsigned int netcard_portlist[] __initdata = {CIRRUS_DEFAULT_BASE, 0};
+ static unsigned int cs8900_irq_map[] = {CIRRUS_DEFAULT_IRQ, 0, 0, 0};
++#elif defined(CONFIG_MACH_QT2410)
++#include <asm/arch/irqs.h>
++static unsigned int netcard_portlist [] __initdata = { 0xe0000300, 0 };
++static unsigned int cs8900_irq_map[] = { IRQ_EINT9, 0, 0, 0 };
+ #else
+ static unsigned int netcard_portlist[] __initdata =
+    { 0x300, 0x320, 0x340, 0x360, 0x200, 0x220, 0x240, 0x260, 0x280, 0x2a0, 0x2c0, 0x2e0, 0};
+@@ -829,6 +833,14 @@
+ 
+ 	printk(" IRQ %d", dev->irq);
+ 
++	dev->dev_addr[0] = 0x00;
++	dev->dev_addr[1] = 0x00;
++	dev->dev_addr[2] = 0xc0;
++	dev->dev_addr[3] = 0xff;
++	dev->dev_addr[4] = 0xee;
++	dev->dev_addr[5] = 0x08;
++	set_mac_address(dev, dev->dev_addr);
++
+ #if ALLOW_DMA
+ 	if (lp->use_dma) {
+ 		get_dma_channel(dev);
+@@ -1308,7 +1320,7 @@
+ 	else
+ #endif
+ 	{
+-#if !defined(CONFIG_MACH_IXDP2351) && !defined(CONFIG_ARCH_IXDP2X01) && !defined(CONFIG_ARCH_PNX010X)
++#if !defined(CONFIG_MACH_IXDP2351) && !defined(CONFIG_ARCH_IXDP2X01) && !defined(CONFIG_ARCH_PNX010X) && !defined(CONFIG_MACH_QT2410)
+ 		if (((1 << dev->irq) & lp->irq_map) == 0) {
+ 			printk(KERN_ERR "%s: IRQ %d is not in our map of allowable IRQs, which is %x\n",
+                                dev->name, dev->irq, lp->irq_map);

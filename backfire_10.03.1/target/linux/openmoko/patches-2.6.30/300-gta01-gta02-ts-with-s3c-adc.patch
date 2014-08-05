@@ -1,0 +1,35 @@
+--- a/arch/arm/mach-s3c2410/mach-gta01.c
++++ b/arch/arm/mach-s3c2410/mach-gta01.c
+@@ -962,6 +962,10 @@
+ 	printk(KERN_DEBUG  "Enabled GSM wakeup IRQ %d (rc=%d)\n",
+ 		   GTA01_IRQ_MODEM, rc);
+ 
++#ifdef CONFIG_S3C24XX_ADC
++	platform_device_register(&s3c_device_adc);
++#endif
++
+ 	pm_power_off = &gta01_power_off;
+ }
+ 
+--- a/arch/arm/mach-s3c2442/mach-gta02.c
++++ b/arch/arm/mach-s3c2442/mach-gta02.c
+@@ -1777,6 +1777,9 @@ static void __init gta02_machine_init(void)
+ 	gta02_vibrator_dev.dev.parent = &s3c24xx_pwm_device.dev; 
+ 	platform_device_register(&gta02_vibrator_dev);
+ #endif
++#ifdef CONFIG_S3C24XX_ADC
++        platform_device_register(&s3c_device_adc);
++#endif
+ }
+ 
+ void DEBUG_LED(int n)
+--- a/arch/arm/plat-s3c24xx/devs.c
++++ b/arch/arm/plat-s3c24xx/devs.c
+@@ -205,6 +205,7 @@ EXPORT_SYMBOL(s3c_device_nand);
+ struct platform_device s3c_device_ts = {
+ 	.name		  = "s3c2410-ts",
+ 	.id		  = -1,
++	.dev.parent	  = &s3c_device_adc.dev,
+ };
+ 
+ EXPORT_SYMBOL(s3c_device_ts);

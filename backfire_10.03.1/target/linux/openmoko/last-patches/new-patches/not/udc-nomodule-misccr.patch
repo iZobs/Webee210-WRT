@@ -1,0 +1,17 @@
+This patch fixes S3C2410 UDC support when built as module. It also ensures
+that the USB port is switched into device mode by configuering the MISCCR
+register accordingly.
+
+Index: linux-2.6.20/drivers/usb/gadget/s3c2410_udc.c
+===================================================================
+--- linux-2.6.20.orig/drivers/usb/gadget/s3c2410_udc.c	2007-02-15 14:54:49.000000000 +0100
++++ linux-2.6.20/drivers/usb/gadget/s3c2410_udc.c	2007-02-15 14:55:45.000000000 +0100
+@@ -1764,6 +1764,8 @@
+ 		udc->vbus = 1;
+ 	}
+ 
++	s3c2410_modify_misccr(S3C2410_MISCCR_USBHOST|S3C2410_MISCCR_USBSUSPND0|S3C2410_MISCCR_USBSUSPND1, 0);
++
+ #ifdef ENABLE_SYSFS
+ 	/* create device files */
+ 	device_create_file(&pdev->dev, &dev_attr_regs);

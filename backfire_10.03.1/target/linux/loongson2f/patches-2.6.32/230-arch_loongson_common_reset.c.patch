@@ -1,0 +1,50 @@
+--- linux-2.6.32.33/arch/mips/loongson/common/reset.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/loongson/common/reset.c	2011-03-26 03:39:49.000000000 +0800
+@@ -21,22 +21,43 @@
+ 	/* do preparation for reboot */
+ 	mach_prepare_reboot();
+ 
+-	/* reboot via jumping to boot base address */
+-	((void (*)(void))ioremap_nocache(BONITO_BOOT_BASE, 4)) ();
++	/* reboot via jumping to boot base address
++	 *
++	 * ".set noat" and ".set at" are used to ensure the address not
++	 * polluted by the binutils patch. the patch will try to change the
++	 * jumping address to "addr & 0xcfffffff" via the at register, which is
++	 * really wrong for 0xbfc00000:
++	 */
++
++	__asm__ __volatile__(".set noat\n"
++			".long 0x3c02bfc0\n"
++			".long 0x00400008\n"
++			".set at\n"
++			:::"v0");
++
+ }
+ 
+-static void loongson_halt(void)
++static void loongson_poweroff(void)
+ {
+ 	mach_prepare_shutdown();
+ 	while (1)
+ 		;
+ }
+ 
++static void loongson_halt(void)
++{
++	pr_notice("** You can safely turn off the power ** !\n");
++	while (1) {
++		if (cpu_wait)
++			cpu_wait();
++	}
++}
++
+ static int __init mips_reboot_setup(void)
+ {
+ 	_machine_restart = loongson_restart;
+ 	_machine_halt = loongson_halt;
+-	pm_power_off = loongson_halt;
++	pm_power_off = loongson_poweroff;
+ 
+ 	return 0;
+ }

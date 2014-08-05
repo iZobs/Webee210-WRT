@@ -1,0 +1,16 @@
+Fail the build noisily if "mkimage" can't be found, e.g., if we forgot to add
+the u-boot directory to PATH.
+
+Index: linux-2.6.24-rc7/scripts/mkuboot.sh
+===================================================================
+--- linux-2.6.24-rc7.orig/scripts/mkuboot.sh
++++ linux-2.6.24-rc7/scripts/mkuboot.sh
+@@ -11,7 +11,7 @@
+ 	if [ -z "${MKIMAGE}" ]; then
+ 		# Doesn't exist
+ 		echo '"mkimage" command not found - U-Boot images will not be built' >&2
+-		exit 0;
++		exit 1;
+ 	fi
+ fi
+ 

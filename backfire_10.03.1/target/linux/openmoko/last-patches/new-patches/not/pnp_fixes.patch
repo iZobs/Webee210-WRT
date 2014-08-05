@@ -1,0 +1,33 @@
+Index: linux-2.6.24-rc7/drivers/pnp/Kconfig
+===================================================================
+--- linux-2.6.24-rc7.orig/drivers/pnp/Kconfig
++++ linux-2.6.24-rc7/drivers/pnp/Kconfig
+@@ -5,7 +5,7 @@
+ menuconfig PNP
+ 	bool "Plug and Play support"
+ 	depends on HAS_IOMEM
+-	depends on ISA || ACPI
++	depends on ISA || ACPI || SDIO
+ 	---help---
+ 	  Plug and Play (PnP) is a standard for peripherals which allows those
+ 	  peripherals to be configured by software, e.g. assign IRQ's or other
+Index: linux-2.6.24-rc7/drivers/pnp/resource.c
+===================================================================
+--- linux-2.6.24-rc7.orig/drivers/pnp/resource.c
++++ linux-2.6.24-rc7/drivers/pnp/resource.c
+@@ -431,6 +431,7 @@
+ 		}
+ 	}
+ 
++#if 0
+ 	/* check if the resource is already in use, skip if the
+ 	 * device is active because it itself may be in use */
+ 	if (!dev->active) {
+@@ -438,6 +439,7 @@
+ 			return 0;
+ 		free_dma(*dma);
+ 	}
++#endif
+ 
+ 	/* check for conflicts with other pnp devices */
+ 	pnp_for_each_dev(tdev) {

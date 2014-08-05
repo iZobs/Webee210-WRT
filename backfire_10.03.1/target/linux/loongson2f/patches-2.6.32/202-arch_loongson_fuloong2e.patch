@@ -1,0 +1,28 @@
+diff -Nur linux-2.6.32.33/arch/mips/loongson/fuloong-2e/irq.c linux-2.6.32.33-loongson2f/arch/mips/loongson/fuloong-2e/irq.c
+--- linux-2.6.32.33/arch/mips/loongson/fuloong-2e/irq.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/loongson/fuloong-2e/irq.c	2011-03-26 03:39:49.000000000 +0800
+@@ -47,8 +47,8 @@
+ void __init set_irq_trigger_mode(void)
+ {
+ 	/* most bonito irq should be level triggered */
+-	BONITO_INTEDGE = BONITO_ICU_SYSTEMERR | BONITO_ICU_MASTERERR |
+-	    BONITO_ICU_RETRYERR | BONITO_ICU_MBOXES;
++	LOONGSON_INTEDGE = LOONGSON_ICU_SYSTEMERR | LOONGSON_ICU_MASTERERR |
++	    LOONGSON_ICU_RETRYERR | LOONGSON_ICU_MBOXES;
+ }
+ 
+ void __init mach_init_irq(void)
+diff -Nur linux-2.6.32.33/arch/mips/loongson/fuloong-2e/reset.c linux-2.6.32.33-loongson2f/arch/mips/loongson/fuloong-2e/reset.c
+--- linux-2.6.32.33/arch/mips/loongson/fuloong-2e/reset.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/loongson/fuloong-2e/reset.c	2011-03-26 03:39:49.000000000 +0800
+@@ -14,8 +14,8 @@
+ 
+ void mach_prepare_reboot(void)
+ {
+-	BONITO_BONGENCFG &= ~(1 << 2);
+-	BONITO_BONGENCFG |= (1 << 2);
++	LOONGSON_GENCFG &= ~(1 << 2);
++	LOONGSON_GENCFG |= (1 << 2);
+ }
+ 
+ void mach_prepare_shutdown(void)

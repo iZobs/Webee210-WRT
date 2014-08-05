@@ -1,0 +1,17 @@
+--- linux-2.6.32.33/arch/mips/loongson/common/env.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/loongson/common/env.c	2011-03-26 03:39:49.000000000 +0800
+@@ -17,11 +17,14 @@
+  * Free Software Foundation;  either version 2 of the  License, or (at your
+  * option) any later version.
+  */
++#include <linux/module.h>
++
+ #include <asm/bootinfo.h>
+ 
+ #include <loongson.h>
+ 
+ unsigned long bus_clock, cpu_clock_freq;
++EXPORT_SYMBOL(cpu_clock_freq);
+ unsigned long memsize, highmemsize;
+ 
+ /* pmon passes arguments in 32bit pointers */

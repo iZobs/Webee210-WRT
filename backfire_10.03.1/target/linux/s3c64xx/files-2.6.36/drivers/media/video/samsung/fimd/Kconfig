@@ -1,0 +1,32 @@
+
+if VIDEO_FIMC
+comment "FIMC configurations"
+endif
+
+config VIDEO_FIMC
+	bool "Samsung Camera Interface (FIMC) driver"
+	depends on VIDEO_SAMSUNG
+	default n
+	---help---
+	  This is a video4linux driver for Samsung FIMC device.
+
+config VIDEO_FIMC_DEBUG
+	bool "FIMC driver debug messages"
+	depends on VIDEO_FIMC
+
+config VIDEO_FIMC_MIPI
+	bool "FIMC works with MIPI-CSI2 (Rx)"
+	depends on VIDEO_FIMC && ARCH_S5PC1XX
+
+source "drivers/media/video/samsung/fimc/Kconfig-camera"
+
+config VIDEO_FIMC_CAM_CH
+	int "External Camera channel (0=A, 1=B)"
+	depends on VIDEO_FIMC
+	default "0"
+
+config VIDEO_FIMC_CAM_RESET
+	int "Reset Type (0=low, 1=high)"
+	depends on VIDEO_FIMC
+	default "0"
+

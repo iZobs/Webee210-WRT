@@ -1,0 +1,418 @@
+Make s3c2440 TS driver use s3c-adc API
+
+From: Nelson Castillo <arhuaco@freaks-unidos.net>
+
+I had a patch referenced by
+Vasily Khoruzhick <anarsoul@gmail.com>
+in the linux-arm-kernel as a guide for some of the changes.
+
+Signed-off-by: Nelson Castillo <arhuaco@freaks-unidos.net>
+---
+
+ arch/arm/configs/gta01_moredrivers_defconfig |    2 
+ arch/arm/configs/gta02_micro_defconfig       |    2 
+ arch/arm/configs/gta02_moredrivers_defconfig |    2 
+ arch/arm/configs/gta02_packaging_defconfig   |    2 
+ arch/arm/mach-s3c2410/mach-gta01.c           |    4 +
+ arch/arm/mach-s3c2442/mach-gta02.c           |    3 +
+ arch/arm/plat-s3c24xx/adc.c                  |    9 ++
+ arch/arm/plat-s3c24xx/devs.c                 |    1 
+ drivers/input/touchscreen/s3c2410_ts.c       |  136 +++++++++-----------------
+ 9 files changed, 70 insertions(+), 91 deletions(-)
+
+
+diff --git a/arch/arm/configs/gta01_moredrivers_defconfig b/arch/arm/configs/gta01_moredrivers_defconfig
+index b60ebfb..6ead3c9 100644
+--- a/arch/arm/configs/gta01_moredrivers_defconfig
++++ b/arch/arm/configs/gta01_moredrivers_defconfig
+@@ -180,7 +180,7 @@ CONFIG_S3C2410_CLOCK=y
+ CONFIG_S3C24XX_GPIO_EXTRA=0
+ CONFIG_S3C2410_DMA=y
+ # CONFIG_S3C2410_DMA_DEBUG is not set
+-# CONFIG_S3C24XX_ADC is not set
++CONFIG_S3C24XX_ADC=y
+ CONFIG_MACH_NEO1973=y
+ CONFIG_PLAT_S3C=y
+ CONFIG_CPU_LLSERIAL_S3C2410_ONLY=y
+diff --git a/arch/arm/configs/gta02_micro_defconfig b/arch/arm/configs/gta02_micro_defconfig
+index b81e96d..e9cacc0 100644
+--- a/arch/arm/configs/gta02_micro_defconfig
++++ b/arch/arm/configs/gta02_micro_defconfig
+@@ -158,7 +158,7 @@ CONFIG_S3C24XX_PWM=y
+ CONFIG_S3C24XX_GPIO_EXTRA=0
+ CONFIG_S3C2410_DMA=y
+ # CONFIG_S3C2410_DMA_DEBUG is not set
+-# CONFIG_S3C24XX_ADC is not set
++CONFIG_S3C24XX_ADC=y
+ CONFIG_MACH_NEO1973=y
+ CONFIG_PLAT_S3C=y
+ CONFIG_CPU_LLSERIAL_S3C2440_ONLY=y
+diff --git a/arch/arm/configs/gta02_moredrivers_defconfig b/arch/arm/configs/gta02_moredrivers_defconfig
+index 94698ad..5f1d40f 100644
+--- a/arch/arm/configs/gta02_moredrivers_defconfig
++++ b/arch/arm/configs/gta02_moredrivers_defconfig
+@@ -180,7 +180,7 @@ CONFIG_S3C24XX_PWM=y
+ CONFIG_S3C24XX_GPIO_EXTRA=0
+ CONFIG_S3C2410_DMA=y
+ # CONFIG_S3C2410_DMA_DEBUG is not set
+-# CONFIG_S3C24XX_ADC is not set
++CONFIG_S3C24XX_ADC=y
+ CONFIG_MACH_SMDK=y
+ CONFIG_MACH_NEO1973=y
+ CONFIG_PLAT_S3C=y
+diff --git a/arch/arm/configs/gta02_packaging_defconfig b/arch/arm/configs/gta02_packaging_defconfig
+index 5f9aa93..c2adf63 100644
+--- a/arch/arm/configs/gta02_packaging_defconfig
++++ b/arch/arm/configs/gta02_packaging_defconfig
+@@ -180,7 +180,7 @@ CONFIG_S3C24XX_PWM=y
+ CONFIG_S3C24XX_GPIO_EXTRA=0
+ CONFIG_S3C2410_DMA=y
+ # CONFIG_S3C2410_DMA_DEBUG is not set
+-# CONFIG_S3C24XX_ADC is not set
++CONFIG_S3C24XX_ADC=y
+ CONFIG_MACH_SMDK=y
+ CONFIG_MACH_NEO1973=y
+ CONFIG_PLAT_S3C=y
+diff --git a/arch/arm/mach-s3c2410/mach-gta01.c b/arch/arm/mach-s3c2410/mach-gta01.c
+index c5961d4..4b7e186 100644
+--- a/arch/arm/mach-s3c2410/mach-gta01.c
++++ b/arch/arm/mach-s3c2410/mach-gta01.c
+@@ -994,6 +994,10 @@ static void __init gta01_machine_init(void)
+ 	printk(KERN_DEBUG  "Enabled GSM wakeup IRQ %d (rc=%d)\n",
+ 	       GTA01_IRQ_MODEM, rc);
+ 
++#ifdef CONFIG_S3C24XX_ADC
++	platform_device_register(&s3c_device_adc);
++#endif
++
+ 	pm_power_off = &gta01_power_off;
+ }
+ 
+diff --git a/arch/arm/mach-s3c2442/mach-gta02.c b/arch/arm/mach-s3c2442/mach-gta02.c
+index e1f8b9b..e23ec2a 100644
+--- a/arch/arm/mach-s3c2442/mach-gta02.c
++++ b/arch/arm/mach-s3c2442/mach-gta02.c
+@@ -1674,6 +1674,9 @@ static void __init gta02_machine_init(void)
+ 	gta02_vibrator_dev.dev.parent = &s3c24xx_pwm_device.dev; 
+ 	platform_device_register(&gta02_vibrator_dev);
+ #endif
++#ifdef CONFIG_S3C24XX_ADC
++        platform_device_register(&s3c_device_adc);
++#endif
+ }
+ 
+ void DEBUG_LED(int n)
+diff --git a/arch/arm/plat-s3c24xx/adc.c b/arch/arm/plat-s3c24xx/adc.c
+index a9eec95..9056bcc 100644
+--- a/arch/arm/plat-s3c24xx/adc.c
++++ b/arch/arm/plat-s3c24xx/adc.c
+@@ -69,10 +69,19 @@ static LIST_HEAD(adc_pending);
+ 
+ #define adc_dbg(_adc, msg...) dev_dbg(&(_adc)->pdev->dev, msg)
+ 
++#define AUTOPST	(S3C2410_ADCTSC_YM_SEN | S3C2410_ADCTSC_YP_SEN | \
++		 S3C2410_ADCTSC_XP_SEN | S3C2410_ADCTSC_AUTO_PST | \
++		 S3C2410_ADCTSC_XY_PST(0))
++
++
+ static inline void s3c_adc_convert(struct adc_device *adc)
+ {
+ 	unsigned con = readl(adc->regs + S3C2410_ADCCON);
+ 
++	if (adc->cur->is_ts)
++		writel(S3C2410_ADCTSC_PULL_UP_DISABLE | AUTOPST,
++		       adc->regs + S3C2410_ADCTSC);
++
+ 	con |= S3C2410_ADCCON_ENABLE_START;
+ 	writel(con, adc->regs + S3C2410_ADCCON);
+ }
+diff --git a/arch/arm/plat-s3c24xx/devs.c b/arch/arm/plat-s3c24xx/devs.c
+index 0fdaa54..eeb95f8 100644
+--- a/arch/arm/plat-s3c24xx/devs.c
++++ b/arch/arm/plat-s3c24xx/devs.c
+@@ -205,6 +205,7 @@ EXPORT_SYMBOL(s3c_device_nand);
+ struct platform_device s3c_device_ts = {
+ 	.name		  = "s3c2410-ts",
+ 	.id		  = -1,
++	.dev.parent	  = &s3c_device_adc.dev,
+ };
+ 
+ EXPORT_SYMBOL(s3c_device_ts);
+diff --git a/drivers/input/touchscreen/s3c2410_ts.c b/drivers/input/touchscreen/s3c2410_ts.c
+index 23d7e28..760b13c 100644
+--- a/drivers/input/touchscreen/s3c2410_ts.c
++++ b/drivers/input/touchscreen/s3c2410_ts.c
+@@ -64,6 +64,7 @@
+ #include <mach/ts.h>
+ #include <mach/hardware.h>
+ #include <plat/regs-adc.h>
++#include <plat/adc.h>
+ 
+ #include "ts_filter_chain.h"
+ 
+@@ -78,12 +79,6 @@
+ 		     S3C2410_ADCTSC_XP_SEN | \
+ 		     S3C2410_ADCTSC_XY_PST(3))
+ 
+-#define AUTOPST	     (S3C2410_ADCTSC_YM_SEN | \
+-		      S3C2410_ADCTSC_YP_SEN | \
+-		      S3C2410_ADCTSC_XP_SEN | \
+-		      S3C2410_ADCTSC_AUTO_PST | \
+-		      S3C2410_ADCTSC_XY_PST(0))
+-
+ #define DEBUG_LVL    KERN_DEBUG
+ 
+ MODULE_AUTHOR("Arnaud Patard <arnaud.patard@rtp-net.org>");
+@@ -110,10 +105,12 @@ static char *s3c2410ts_name = "s3c2410 TouchScreen";
+ 
+ struct s3c2410ts {
+ 	struct input_dev *dev;
++	struct s3c_adc_client *adc_client;
+ 	struct ts_filter_chain *chain;
+ 	int is_down;
+ 	int state;
+ 	struct kfifo *event_fifo;
++	unsigned adc_selected;
+ };
+ 
+ static struct s3c2410ts ts;
+@@ -132,12 +129,26 @@ static inline void s3c2410_ts_connect(void)
+ 	s3c2410_gpio_cfgpin(S3C2410_GPG15, S3C2410_GPG15_nYPON);
+ }
+ 
++static void ts_adc_timer_f(unsigned long data);
++static struct timer_list ts_adc_timer = TIMER_INITIALIZER(ts_adc_timer_f, 0, 0);
++
++static void ts_adc_timer_f(unsigned long data)
++{
++	if (s3c_adc_start(ts.adc_client, 0, 1))
++		mod_timer(&ts_adc_timer, jiffies + 1);
++}
++
++void adc_selected_f(unsigned selected)
++{
++	ts.adc_selected = selected;
++}
++
+ static void s3c2410_ts_start_adc_conversion(void)
+ {
+-	writel(S3C2410_ADCTSC_PULL_UP_DISABLE | AUTOPST,
+-	       base_addr + S3C2410_ADCTSC);
+-	writel(readl(base_addr + S3C2410_ADCCON) | S3C2410_ADCCON_ENABLE_START,
+-	       base_addr + S3C2410_ADCCON);
++	if (ts.adc_selected)
++		mod_timer(&ts_adc_timer, jiffies + 1);
++	else
++		ts_adc_timer_f(0);
+ }
+ 
+ /*
+@@ -282,21 +293,25 @@ static irqreturn_t stylus_updown(int irq, void *dev_id)
+ 	return IRQ_HANDLED;
+ }
+ 
+-static irqreturn_t stylus_action(int irq, void *dev_id)
++static void stylus_adc_action(unsigned p0, unsigned p1, unsigned *conv_left)
+ {
+ 	int buf[3];
+ 
+-	/* Grab the ADC results. */
+-	buf[1] = readl(base_addr + S3C2410_ADCDAT0) &
+-		       S3C2410_ADCDAT0_XPDATA_MASK;
+-	buf[2] = readl(base_addr + S3C2410_ADCDAT1) &
+-		       S3C2410_ADCDAT1_YPDATA_MASK;
++	/* TODO: Do we really need this? */
++	if (p0 & S3C2410_ADCDAT0_AUTO_PST ||
++	    p1 & S3C2410_ADCDAT1_AUTO_PST) {
++		*conv_left = 1;
++		return;
++	}
++
++	buf[1] = p0;
++	buf[2] = p1;
+ 
+ 	switch (ts_filter_chain_feed(ts.chain, &buf[1])) {
+ 	case 0:
+ 		/* The filter wants more points. */
+-		s3c2410_ts_start_adc_conversion();
+-		return IRQ_HANDLED;
++		*conv_left = 1;
++		return;
+ 	case 1:
+ 		/* We have a point from the filters or no filtering enabled. */
+ 		buf[0] = 'P';
+@@ -309,7 +324,7 @@ static irqreturn_t stylus_action(int irq, void *dev_id)
+ 		/* Error. Ignore the event. */
+ 		ts_filter_chain_clear(ts.chain);
+ 		writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+-		return IRQ_HANDLED;
++		return;
+ 	};
+ 
+ 	if (unlikely(__kfifo_put(ts.event_fifo, (unsigned char *)buf,
+@@ -319,11 +334,9 @@ static irqreturn_t stylus_action(int irq, void *dev_id)
+ 	writel(WAIT4INT(1), base_addr + S3C2410_ADCTSC);
+ 	mod_timer(&event_send_timer, jiffies + 1);
+ 
+-	return IRQ_HANDLED;
++	return;
+ }
+ 
+-static struct clk	*adc_clock;
+-
+ /*
+  * The functions for inserting/removing us as a module.
+  */
+@@ -349,17 +362,6 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 	printk(DEBUG_LVL "Entering s3c2410ts_init\n");
+ #endif
+ 
+-	adc_clock = clk_get(NULL, "adc");
+-	if (!adc_clock) {
+-		dev_err(&pdev->dev, "failed to get adc clock source\n");
+-		return -ENOENT;
+-	}
+-	clk_enable(adc_clock);
+-
+-#ifdef CONFIG_TOUCHSCREEN_S3C2410_DEBUG
+-	printk(DEBUG_LVL "got and enabled clock\n");
+-#endif
+-
+ 	base_addr = ioremap(S3C2410_PA_ADC,0x20);
+ 	if (base_addr == NULL) {
+ 		dev_err(&pdev->dev, "Failed to remap register block\n");
+@@ -372,23 +374,22 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 	if (!strcmp(pdev->name, "s3c2410-ts"))
+ 		s3c2410_ts_connect();
+ 
+-	if ((info->presc & 0xff) > 0)
+-		writel(S3C2410_ADCCON_PRSCEN |
+-		       S3C2410_ADCCON_PRSCVL(info->presc&0xFF),
+-						    base_addr + S3C2410_ADCCON);
+-	else
+-		writel(0, base_addr+S3C2410_ADCCON);
+-
+-	/* Initialise registers */
+-	if ((info->delay & 0xffff) > 0)
+-		writel(info->delay & 0xffff,  base_addr + S3C2410_ADCDLY);
+-
+ 	writel(WAIT4INT(0), base_addr + S3C2410_ADCTSC);
+ 
+ 	/* Initialise input stuff */
+ 	memset(&ts, 0, sizeof(struct s3c2410ts));
+-	input_dev = input_allocate_device();
+ 
++	ts.adc_client =
++		s3c_adc_register(pdev, adc_selected_f, stylus_adc_action, 1);
++	if (!ts.adc_client) {
++		dev_err(&pdev->dev,
++			"Unable to register s3c2410_ts as s3_adc client\n");
++		iounmap(base_addr);
++		ret = -EIO;
++		goto bail0;
++	}
++
++	input_dev = input_allocate_device();
+ 	if (!input_dev) {
+ 		dev_err(&pdev->dev, "Unable to allocate the input device\n");
+ 		ret = -ENOMEM;
+@@ -423,18 +424,10 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 
+ 	ts_filter_chain_clear(ts.chain);
+ 
+-	/* Get irqs */
+-	if (request_irq(IRQ_ADC, stylus_action, IRQF_SAMPLE_RANDOM,
+-						    "s3c2410_action", ts.dev)) {
+-		dev_err(&pdev->dev, "Could not allocate ts IRQ_ADC !\n");
+-		iounmap(base_addr);
+-		ret = -EIO;
+-		goto bail3;
+-	}
++	/* Get IRQ. */
+ 	if (request_irq(IRQ_TC, stylus_updown, IRQF_SAMPLE_RANDOM,
+ 			"s3c2410_action", ts.dev)) {
+ 		dev_err(&pdev->dev, "Could not allocate ts IRQ_TC !\n");
+-		free_irq(IRQ_ADC, ts.dev);
+ 		iounmap(base_addr);
+ 		ret = -EIO;
+ 		goto bail4;
+@@ -445,6 +438,7 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 	/* All went ok, so register to the input system */
+ 	rc = input_register_device(ts.dev);
+ 	if (rc) {
++		dev_info(&pdev->dev, "Could not register input device\n");
+ 		ret = -EIO;
+ 		goto bail5;
+ 	}
+@@ -453,13 +447,9 @@ static int __init s3c2410ts_probe(struct platform_device *pdev)
+ 
+ bail5:
+ 	free_irq(IRQ_TC, ts.dev);
+-	free_irq(IRQ_ADC, ts.dev);
+-	clk_disable(adc_clock);
+ 	iounmap(base_addr);
+ 	disable_irq(IRQ_TC);
+ bail4:
+-	disable_irq(IRQ_ADC);
+-bail3:
+ 	ts_filter_chain_destroy(ts.chain);
+ 	kfifo_free(ts.event_fifo);
+ bail2:
+@@ -473,17 +463,10 @@ bail0:
+ 
+ static int s3c2410ts_remove(struct platform_device *pdev)
+ {
+-	disable_irq(IRQ_ADC);
+ 	disable_irq(IRQ_TC);
+ 	free_irq(IRQ_TC,ts.dev);
+-	free_irq(IRQ_ADC,ts.dev);
+-
+-	if (adc_clock) {
+-		clk_disable(adc_clock);
+-		clk_put(adc_clock);
+-		adc_clock = NULL;
+-	}
+ 
++	s3c_adc_release(ts.adc_client);
+ 	input_unregister_device(ts.dev);
+ 	iounmap(base_addr);
+ 
+@@ -501,38 +484,17 @@ static int s3c2410ts_suspend(struct platform_device *pdev, pm_message_t state)
+ 	writel(readl(base_addr+S3C2410_ADCCON) | S3C2410_ADCCON_STDBM,
+ 	       base_addr+S3C2410_ADCCON);
+ 
+-	disable_irq(IRQ_ADC);
+ 	disable_irq(IRQ_TC);
+ 
+-	clk_disable(adc_clock);
+-
+ 	return 0;
+ }
+ 
+ static int s3c2410ts_resume(struct platform_device *pdev)
+ {
+-	struct s3c2410_ts_mach_info *info =
+-		( struct s3c2410_ts_mach_info *)pdev->dev.platform_data;
+-
+-	clk_enable(adc_clock);
+-	mdelay(1);
+-
+ 	ts_filter_chain_clear(ts.chain);
+ 
+-	enable_irq(IRQ_ADC);
+ 	enable_irq(IRQ_TC);
+ 
+-	if ((info->presc&0xff) > 0)
+-		writel(S3C2410_ADCCON_PRSCEN |
+-		       S3C2410_ADCCON_PRSCVL(info->presc&0xFF),
+-						      base_addr+S3C2410_ADCCON);
+-	else
+-		writel(0,base_addr+S3C2410_ADCCON);
+-
+-	/* Initialise registers */
+-	if ((info->delay & 0xffff) > 0)
+-		writel(info->delay & 0xffff,  base_addr+S3C2410_ADCDLY);
+-
+ 	writel(WAIT4INT(0), base_addr+S3C2410_ADCTSC);
+ 
+ 	return 0;

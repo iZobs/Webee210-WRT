@@ -1,0 +1,3 @@
+
+The platform specific modules can be loaded automatically now, you have no need
+to modify the /etc/modules.

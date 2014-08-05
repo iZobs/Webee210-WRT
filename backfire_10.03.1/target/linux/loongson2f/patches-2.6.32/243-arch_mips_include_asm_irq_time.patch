@@ -1,0 +1,65 @@
+--- linux-2.6.32.33/arch/mips/include/asm/irq.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/irq.h	2011-03-26 03:39:49.000000000 +0800
+@@ -113,36 +113,11 @@
+ 
+ #endif
+ 
+-/*
+- * do_IRQ handles all normal device IRQ's (the special
+- * SMP cross-CPU interrupts have their own specific
+- * handlers).
+- *
+- * Ideally there should be away to get this into kernel/irq/handle.c to
+- * avoid the overhead of a call for just a tiny function ...
+- */
+-#define do_IRQ(irq)							\
+-do {									\
+-	irq_enter();							\
+-	__DO_IRQ_SMTC_HOOK(irq);					\
+-	generic_handle_irq(irq);					\
+-	irq_exit();							\
+-} while (0)
++extern void do_IRQ(unsigned int irq);
+ 
+ #ifdef CONFIG_MIPS_MT_SMTC_IRQAFF
+-/*
+- * To avoid inefficient and in some cases pathological re-checking of
+- * IRQ affinity, we have this variant that skips the affinity check.
+- */
+-
+ 
+-#define do_IRQ_no_affinity(irq)						\
+-do {									\
+-	irq_enter();							\
+-	__NO_AFFINITY_IRQ_SMTC_HOOK(irq);				\
+-	generic_handle_irq(irq);					\
+-	irq_exit();							\
+-} while (0)
++extern void do_IRQ_no_affinity(unsigned int irq);
+ 
+ #endif /* CONFIG_MIPS_MT_SMTC_IRQAFF */
+ 
+--- linux-2.6.32.33/arch/mips/include/asm/time.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/include/asm/time.h	2011-03-26 03:39:49.000000000 +0800
+@@ -84,6 +84,21 @@
+ #endif
+ }
+ 
++/*
++ * Setup the high resolution sched_clock()
++ */
++#ifdef CONFIG_HR_SCHED_CLOCK
++extern void setup_r4k_sched_clock(struct clocksource cs, unsigned int clock);
++#endif
++
++static inline void setup_hres_sched_clock(struct clocksource cs,
++		unsigned int clock)
++{
++#ifdef CONFIG_HR_SCHED_CLOCK
++	setup_r4k_sched_clock(cs, clock);
++#endif
++}
++
+ extern void clocksource_set_clock(struct clocksource *cs, unsigned int clock);
+ extern void clockevent_set_clock(struct clock_event_device *cd,
+ 		unsigned int clock);

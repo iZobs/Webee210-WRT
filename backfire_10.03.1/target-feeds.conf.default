@@ -1,0 +1,5 @@
+src-git loongson2f git://github.com/openosom/loongson2f_openwrt10.03.1.git
+src-git s3c24xx git://github.com/openosom/s3c24xx_openwrt10.03.1.git
+src-git goldfish git://github.com/openosom/goldfish_openwrt10.03.1.git
+#src-svn example https://openosom.googlecode.com/svn/example
+#src-link custom /usr/src/openwrt/custom-feed

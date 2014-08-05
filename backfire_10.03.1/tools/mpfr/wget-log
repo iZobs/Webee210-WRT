@@ -1,0 +1,16 @@
+--2014-07-28 17:30:11--  http://mirror2.openwrt.org/sources/mpfr-2.4.1.tar.bz2
+Resolving mirror2.openwrt.org (mirror2.openwrt.org)... 46.4.11.11
+Connecting to mirror2.openwrt.org (mirror2.openwrt.org)|46.4.11.11|:80... connected.
+HTTP request sent, awaiting response... Read error (Connection timed out) in headers.
+Retrying.
+
+--2014-07-28 17:30:46--  (try: 2)  http://mirror2.openwrt.org/sources/mpfr-2.4.1.tar.bz2
+Connecting to mirror2.openwrt.org (mirror2.openwrt.org)|46.4.11.11|:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 1064281 (1.0M) [application/x-bzip2]
+Saving to: `STDOUT'
+
+ 3% [=>                                                  ] 42,528      2.76K/s   in 15s     
+
+
+Cannot write to `-' (Input/output error).

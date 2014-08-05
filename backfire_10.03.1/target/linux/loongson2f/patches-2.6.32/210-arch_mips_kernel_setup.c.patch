@@ -1,0 +1,42 @@
+--- linux-2.6.32.33/arch/mips/kernel/setup.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/setup.c	2011-03-26 03:39:49.000000000 +0800
+@@ -58,8 +58,9 @@
+ 
+ struct boot_mem_map boot_mem_map;
+ 
+-static char command_line[CL_SIZE];
+-       char arcs_cmdline[CL_SIZE]=CONFIG_CMDLINE;
++static char command_line[COMMAND_LINE_SIZE];
++       char arcs_cmdline[COMMAND_LINE_SIZE] = CONFIG_CMDLINE;
++EXPORT_SYMBOL(arcs_cmdline);
+ 
+ /*
+  * mips_io_port_base is the begin of the address space to which x86 style
+@@ -166,26 +167,8 @@
+ 	 * already set up initrd_start and initrd_end. In these cases
+ 	 * perfom sanity checks and use them if all looks good.
+ 	 */
+-	if (!initrd_start || initrd_end <= initrd_start) {
+-#ifdef CONFIG_PROBE_INITRD_HEADER
+-		u32 *initrd_header;
+-
+-		/*
+-		 * See if initrd has been added to the kernel image by
+-		 * arch/mips/boot/addinitrd.c. In that case a header is
+-		 * prepended to initrd and is made up by 8 bytes. The first
+-		 * word is a magic number and the second one is the size of
+-		 * initrd.  Initrd start must be page aligned in any cases.
+-		 */
+-		initrd_header = __va(PAGE_ALIGN(__pa_symbol(&_end) + 8)) - 8;
+-		if (initrd_header[0] != 0x494E5244)
+-			goto disable;
+-		initrd_start = (unsigned long)(initrd_header + 2);
+-		initrd_end = initrd_start + initrd_header[1];
+-#else
++	if (!initrd_start || initrd_end <= initrd_start)
+ 		goto disable;
+-#endif
+-	}
+ 
+ 	if (initrd_start & ~PAGE_MASK) {
+ 		pr_err("initrd start must be page aligned\n");

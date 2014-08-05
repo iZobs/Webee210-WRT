@@ -1,0 +1,19 @@
+diff -Nur linux-2.6.32.33/drivers/spi/au1550_spi.c linux-2.6.32.33-loongson2f/drivers/spi/au1550_spi.c
+--- linux-2.6.32.33/drivers/spi/au1550_spi.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/spi/au1550_spi.c	2011-03-26 03:39:49.000000000 +0800
+@@ -406,11 +406,13 @@
+ 	}
+ 
+ 	/* put buffers on the ring */
+-	res = au1xxx_dbdma_put_dest(hw->dma_rx_ch, hw->rx, t->len);
++	res = au1xxx_dbdma_put_dest(hw->dma_rx_ch, virt_to_phys(hw->rx),
++				    t->len, DDMA_FLAGS_IE);
+ 	if (!res)
+ 		dev_err(hw->dev, "rx dma put dest error\n");
+ 
+-	res = au1xxx_dbdma_put_source(hw->dma_tx_ch, (void *)hw->tx, t->len);
++	res = au1xxx_dbdma_put_source(hw->dma_tx_ch, virt_to_phys(hw->tx),
++				      t->len, DDMA_FLAGS_IE);
+ 	if (!res)
+ 		dev_err(hw->dev, "tx dma put source error\n");
+ 

@@ -1,0 +1,34 @@
+diff -Nur linux-2.6.32.33/arch/mips/lib/delay.c linux-2.6.32.33-loongson2f/arch/mips/lib/delay.c
+--- linux-2.6.32.33/arch/mips/lib/delay.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/lib/delay.c	2011-03-26 03:39:49.000000000 +0800
+@@ -41,7 +41,7 @@
+ 
+ void __udelay(unsigned long us)
+ {
+-	unsigned int lpj = current_cpu_data.udelay_val;
++	unsigned int lpj = raw_current_cpu_data.udelay_val;
+ 
+ 	__delay((us * 0x000010c7ull * HZ * lpj) >> 32);
+ }
+@@ -49,7 +49,7 @@
+ 
+ void __ndelay(unsigned long ns)
+ {
+-	unsigned int lpj = current_cpu_data.udelay_val;
++	unsigned int lpj = raw_current_cpu_data.udelay_val;
+ 
+ 	__delay((ns * 0x00000005ull * HZ * lpj) >> 32);
+ }
+diff -Nur linux-2.6.32.33/arch/mips/lib/libgcc.h linux-2.6.32.33-loongson2f/arch/mips/lib/libgcc.h
+--- linux-2.6.32.33/arch/mips/lib/libgcc.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/lib/libgcc.h	2011-03-26 03:39:49.000000000 +0800
+@@ -17,8 +17,7 @@
+ #error I feel sick.
+ #endif
+ 
+-typedef union
+-{
++typedef union {
+ 	struct DWstruct s;
+ 	long long ll;
+ } DWunion;

@@ -1,0 +1,43 @@
+--- linux-2.6.32.33/arch/mips/kernel/cpu-probe.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/kernel/cpu-probe.c	2011-03-26 03:39:49.000000000 +0800
+@@ -16,6 +16,7 @@
+ #include <linux/ptrace.h>
+ #include <linux/smp.h>
+ #include <linux/stddef.h>
++#include <linux/module.h>
+ 
+ #include <asm/bugs.h>
+ #include <asm/cpu.h>
+@@ -32,6 +33,7 @@
+  * the CPU very much.
+  */
+ void (*cpu_wait)(void);
++EXPORT_SYMBOL(cpu_wait);
+ 
+ static void r3081_wait(void)
+ {
+@@ -282,6 +284,15 @@
+ 	return ((cpu_get_fpu_id() & 0xff00) != FPIR_IMP_NONE);
+ }
+ 
++static inline void cpu_probe_vmbits(struct cpuinfo_mips *c)
++{
++#ifdef __NEED_VMBITS_PROBE
++	write_c0_entryhi(0x3fffffffffffe000ULL);
++	back_to_back_c0_hazard();
++	c->vmbits = fls64(read_c0_entryhi() & 0x3fffffffffffe000ULL);
++#endif
++}
++
+ #define R4K_OPTS (MIPS_CPU_TLB | MIPS_CPU_4KEX | MIPS_CPU_4K_CACHE \
+ 		| MIPS_CPU_COUNTER)
+ 
+@@ -967,6 +978,8 @@
+ 		c->srsets = ((read_c0_srsctl() >> 26) & 0x0f) + 1;
+ 	else
+ 		c->srsets = 1;
++
++	cpu_probe_vmbits(c);
+ }
+ 
+ __cpuinit void cpu_report(void)

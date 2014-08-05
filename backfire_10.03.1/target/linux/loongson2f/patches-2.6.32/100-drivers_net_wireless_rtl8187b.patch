@@ -1,0 +1,41 @@
+--- linux-2.6.32.33/drivers/net/wireless/Makefile	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/net/wireless/Makefile	2011-03-26 03:39:49.000000000 +0800
+@@ -34,6 +34,7 @@
+ obj-$(CONFIG_ZD1211RW)		+= zd1211rw/
+ obj-$(CONFIG_RTL8180)		+= rtl818x/
+ obj-$(CONFIG_RTL8187)		+= rtl818x/
++obj-$(CONFIG_RTL8187B)		+= rtl8187b/
+ 
+ # 16-bit wireless PCMCIA client drivers
+ obj-$(CONFIG_PCMCIA_RAYCS)	+= ray_cs.o
+--- linux-2.6.32.33/drivers/net/wireless/Kconfig	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/net/wireless/Kconfig	2011-03-26 03:39:49.000000000 +0800
+@@ -400,7 +400,7 @@
+ 
+ config RTL8187
+ 	tristate "Realtek 8187 and 8187B USB support"
+-	depends on MAC80211 && USB && WLAN_80211
++	depends on MAC80211 && USB && WLAN_80211 && !LEMOTE_MACH2F
+ 	select EEPROM_93CX6
+ 	---help---
+ 	  This is a driver for RTL8187 and RTL8187B based cards.
+@@ -427,6 +427,19 @@
+ 	depends on RTL8187 && MAC80211_LEDS && (LEDS_CLASS = y || LEDS_CLASS = RTL8187)
+ 	default y
+ 
++config RTL8187B
++	tristate "Realtek 8187B wifi support for yeeloong2f laptop"
++	depends on USB && WLAN_80211 && LEMOTE_MACH2F
++	depends on LEMOTE_YEELOONG2F_PDEV || !LEMOTE_YEELOONG2F_PDEV
++	depends on RFKILL || !RFKILL
++	select EEPROM_93CX6
++	select CRYPTO
++	---help---
++	  This is a driver for RTL8187B based cards, this driver is especially
++	  for yeeloon2f laptop.
++
++	  Thanks to Realtek for their support!
++
+ config ADM8211
+ 	tristate "ADMtek ADM8211 support"
+ 	depends on MAC80211 && PCI && WLAN_80211 && EXPERIMENTAL

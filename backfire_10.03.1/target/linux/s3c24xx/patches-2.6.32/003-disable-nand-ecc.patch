@@ -1,0 +1,12 @@
+--- linux-2.6.32.27/drivers/mtd/nand/s3c2410.c.orig	2010-11-22 13:48:20.000000000 -0500
++++ linux-2.6.32.27/drivers/mtd/nand/s3c2410.c	2011-04-03 02:09:03.000000000 -0400
+@@ -839,7 +839,8 @@
+ 
+ 		}
+ 	} else {
+-		chip->ecc.mode	    = NAND_ECC_SOFT;
++//		chip->ecc.mode	    = NAND_ECC_SOFT;
++		chip->ecc.mode	= NAND_ECC_NONE;
+ 	}
+ 
+ 	if (set->ecc_layout != NULL)

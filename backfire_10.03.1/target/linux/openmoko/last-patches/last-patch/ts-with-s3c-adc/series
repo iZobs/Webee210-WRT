@@ -1,0 +1,6 @@
+# This series applies on GIT commit 901d73fe51f33032b34b2ae5612eb863ec90532a
+s3c-adc-add-delay.patch
+s3c-adc-cleanup.patch
+s3c-adc-control-remaining-conversions.patch
+modify-s3c2440.c-to-use-adc-api.patch
+cleanup-s3c2440_ts.c.patch

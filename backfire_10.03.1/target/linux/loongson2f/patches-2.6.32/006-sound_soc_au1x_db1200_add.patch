@@ -1,0 +1,239 @@
+diff -Nur linux-2.6.32.33/sound/soc/au1x/db1200.c linux-2.6.32.33-loongson2f/sound/soc/au1x/db1200.c
+--- linux-2.6.32.33/sound/soc/au1x/db1200.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/au1x/db1200.c	2011-03-26 03:39:49.000000000 +0800
+@@ -0,0 +1,141 @@
++/*
++ * DB1200 ASoC audio fabric support code.
++ *
++ * (c) 2008-9 Manuel Lauss <manuel.lauss@gmail.com>
++ *
++ */
++
++#include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/timer.h>
++#include <linux/interrupt.h>
++#include <linux/platform_device.h>
++#include <sound/core.h>
++#include <sound/pcm.h>
++#include <sound/soc.h>
++#include <sound/soc-dapm.h>
++#include <asm/mach-au1x00/au1000.h>
++#include <asm/mach-au1x00/au1xxx_psc.h>
++#include <asm/mach-au1x00/au1xxx_dbdma.h>
++#include <asm/mach-db1x00/bcsr.h>
++
++#include "../codecs/ac97.h"
++#include "../codecs/wm8731.h"
++#include "psc.h"
++
++/*-------------------------  AC97 PART  ---------------------------*/
++
++static struct snd_soc_dai_link db1200_ac97_dai = {
++	.name		= "AC97",
++	.stream_name	= "AC97 HiFi",
++	.cpu_dai	= &au1xpsc_ac97_dai,
++	.codec_dai	= &ac97_dai,
++};
++
++static struct snd_soc_card db1200_ac97_machine = {
++	.name		= "DB1200_AC97",
++	.dai_link	= &db1200_ac97_dai,
++	.num_links	= 1,
++	.platform	= &au1xpsc_soc_platform,
++};
++
++static struct snd_soc_device db1200_ac97_devdata = {
++	.card		= &db1200_ac97_machine,
++	.codec_dev	= &soc_codec_dev_ac97,
++};
++
++/*-------------------------  I2S PART  ---------------------------*/
++
++static int db1200_i2s_startup(struct snd_pcm_substream *substream)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
++	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
++	int ret;
++
++	/* WM8731 has its own 12MHz crystal */
++	snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK,
++				12000000, SND_SOC_CLOCK_IN);
++
++	/* codec is bitclock and lrclk master */
++	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_LEFT_J |
++			SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
++	if (ret < 0)
++		goto out;
++
++	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_LEFT_J |
++			SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBM_CFM);
++	if (ret < 0)
++		goto out;
++
++	ret = 0;
++out:
++	return ret;
++}
++
++static struct snd_soc_ops db1200_i2s_wm8731_ops = {
++	.startup	= db1200_i2s_startup,
++};
++
++static struct snd_soc_dai_link db1200_i2s_dai = {
++	.name		= "WM8731",
++	.stream_name	= "WM8731 PCM",
++	.cpu_dai	= &au1xpsc_i2s_dai,
++	.codec_dai	= &wm8731_dai,
++	.ops		= &db1200_i2s_wm8731_ops,
++};
++
++static struct snd_soc_card db1200_i2s_machine = {
++	.name		= "DB1200_I2S",
++	.dai_link	= &db1200_i2s_dai,
++	.num_links	= 1,
++	.platform	= &au1xpsc_soc_platform,
++};
++
++static struct snd_soc_device db1200_i2s_devdata = {
++	.card		= &db1200_i2s_machine,
++	.codec_dev	= &soc_codec_dev_wm8731,
++};
++
++/*-------------------------  COMMON PART  ---------------------------*/
++
++static struct platform_device *db1200_asoc_dev;
++
++static int __init db1200_audio_load(void)
++{
++	int ret;
++
++	ret = -ENOMEM;
++	db1200_asoc_dev = platform_device_alloc("soc-audio", -1);
++	if (!db1200_asoc_dev)
++		goto out;
++
++	/* DB1200 board setup set PSC1MUX to preferred audio device */
++	if (bcsr_read(BCSR_RESETS) & BCSR_RESETS_PSC1MUX)
++		platform_set_drvdata(db1200_asoc_dev, &db1200_i2s_devdata);
++	else
++		platform_set_drvdata(db1200_asoc_dev, &db1200_ac97_devdata);
++
++	db1200_ac97_devdata.dev = &db1200_asoc_dev->dev;
++	db1200_i2s_devdata.dev = &db1200_asoc_dev->dev;
++	ret = platform_device_add(db1200_asoc_dev);
++
++	if (ret) {
++		platform_device_put(db1200_asoc_dev);
++		db1200_asoc_dev = NULL;
++	}
++out:
++	return ret;
++}
++
++static void __exit db1200_audio_unload(void)
++{
++	platform_device_unregister(db1200_asoc_dev);
++}
++
++module_init(db1200_audio_load);
++module_exit(db1200_audio_unload);
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("DB1200 ASoC audio support");
++MODULE_AUTHOR("Manuel Lauss");
+diff -Nur linux-2.6.32.33/sound/soc/au1x/dbdma2.c linux-2.6.32.33-loongson2f/sound/soc/au1x/dbdma2.c
+--- linux-2.6.32.33/sound/soc/au1x/dbdma2.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/au1x/dbdma2.c	2011-03-26 03:39:49.000000000 +0800
+@@ -51,8 +51,8 @@
+ 	struct snd_pcm_substream *substream;
+ 	unsigned long curr_period;	/* current segment DDMA is working on */
+ 	unsigned long q_period;		/* queue period(s) */
+-	unsigned long dma_area;		/* address of queued DMA area */
+-	unsigned long dma_area_s;	/* start address of DMA area */
++	dma_addr_t dma_area;		/* address of queued DMA area */
++	dma_addr_t dma_area_s;		/* start address of DMA area */
+ 	unsigned long pos;		/* current byte position being played */
+ 	unsigned long periods;		/* number of SG segments in total */
+ 	unsigned long period_bytes;	/* size in bytes of one SG segment */
+@@ -94,8 +94,7 @@
+ 
+ static void au1x_pcm_queue_tx(struct au1xpsc_audio_dmadata *cd)
+ {
+-	au1xxx_dbdma_put_source_flags(cd->ddma_chan,
+-				(void *)phys_to_virt(cd->dma_area),
++	au1xxx_dbdma_put_source(cd->ddma_chan, cd->dma_area,
+ 				cd->period_bytes, DDMA_FLAGS_IE);
+ 
+ 	/* update next-to-queue period */
+@@ -109,9 +108,8 @@
+ 
+ static void au1x_pcm_queue_rx(struct au1xpsc_audio_dmadata *cd)
+ {
+-	au1xxx_dbdma_put_dest_flags(cd->ddma_chan,
+-				(void *)phys_to_virt(cd->dma_area),
+-				cd->period_bytes, DDMA_FLAGS_IE);
++	au1xxx_dbdma_put_dest(cd->ddma_chan, cd->dma_area,
++			      cd->period_bytes, DDMA_FLAGS_IE);
+ 
+ 	/* update next-to-queue period */
+ 	++cd->q_period;
+@@ -233,7 +231,7 @@
+ 	pcd->substream = substream;
+ 	pcd->period_bytes = params_period_bytes(params);
+ 	pcd->periods = params_periods(params);
+-	pcd->dma_area_s = pcd->dma_area = (unsigned long)runtime->dma_addr;
++	pcd->dma_area_s = pcd->dma_area = runtime->dma_addr;
+ 	pcd->q_period = 0;
+ 	pcd->curr_period = 0;
+ 	pcd->pos = 0;
+diff -Nur linux-2.6.32.33/sound/soc/au1x/Kconfig linux-2.6.32.33-loongson2f/sound/soc/au1x/Kconfig
+--- linux-2.6.32.33/sound/soc/au1x/Kconfig	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/au1x/Kconfig	2011-03-26 03:39:49.000000000 +0800
+@@ -22,11 +22,13 @@
+ ##
+ ## Boards
+ ##
+-config SND_SOC_SAMPLE_PSC_AC97
+-	tristate "Sample Au12x0/Au1550 PSC AC97 sound machine"
++config SND_SOC_DB1200
++	tristate "DB1200 AC97+I2S audio support"
+ 	depends on SND_SOC_AU1XPSC
+ 	select SND_SOC_AU1XPSC_AC97
+ 	select SND_SOC_AC97_CODEC
++	select SND_SOC_AU1XPSC_I2S
++	select SND_SOC_WM8731
+ 	help
+-	  This is a sample AC97 sound machine for use in Au12x0/Au1550
+-	  based systems which have audio on PSC1 (e.g. Db1200 demoboard).
++	  Select this option to enable audio (AC97 or I2S) on the
++	  Alchemy/AMD/RMI DB1200 demoboard.
+diff -Nur linux-2.6.32.33/sound/soc/au1x/Makefile linux-2.6.32.33-loongson2f/sound/soc/au1x/Makefile
+--- linux-2.6.32.33/sound/soc/au1x/Makefile	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/au1x/Makefile	2011-03-26 03:39:49.000000000 +0800
+@@ -8,6 +8,6 @@
+ obj-$(CONFIG_SND_SOC_AU1XPSC_AC97) += snd-soc-au1xpsc-ac97.o
+ 
+ # Boards
+-snd-soc-sample-ac97-objs := sample-ac97.o
++snd-soc-db1200-objs := db1200.o
+ 
+-obj-$(CONFIG_SND_SOC_SAMPLE_PSC_AC97) += snd-soc-sample-ac97.o
++obj-$(CONFIG_SND_SOC_DB1200) += snd-soc-db1200.o
+diff -Nur linux-2.6.32.33/sound/soc/txx9/txx9aclc-ac97.c linux-2.6.32.33-loongson2f/sound/soc/txx9/txx9aclc-ac97.c
+--- linux-2.6.32.33/sound/soc/txx9/txx9aclc-ac97.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/txx9/txx9aclc-ac97.c	2011-03-26 03:39:49.000000000 +0800
+@@ -253,3 +253,4 @@
+ MODULE_AUTHOR("Atsushi Nemoto <anemo@mba.ocn.ne.jp>");
+ MODULE_DESCRIPTION("TXx9 ACLC AC97 driver");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:txx9aclc-ac97");
+diff -Nur linux-2.6.32.33/sound/soc/txx9/txx9aclc-generic.c linux-2.6.32.33-loongson2f/sound/soc/txx9/txx9aclc-generic.c
+--- linux-2.6.32.33/sound/soc/txx9/txx9aclc-generic.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/sound/soc/txx9/txx9aclc-generic.c	2011-03-26 03:39:49.000000000 +0800
+@@ -96,3 +96,4 @@
+ MODULE_AUTHOR("Atsushi Nemoto <anemo@mba.ocn.ne.jp>");
+ MODULE_DESCRIPTION("Generic TXx9 ACLC ALSA SoC audio driver");
+ MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:txx9aclc-generic");

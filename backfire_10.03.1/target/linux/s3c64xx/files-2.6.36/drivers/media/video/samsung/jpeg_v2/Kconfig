@@ -1,0 +1,10 @@
+#
+# Configuration for JPEG
+#
+
+config VIDEO_JPEG_V2
+	bool "Samsung JPEG driver" 
+	depends on VIDEO_SAMSUNG && CPU_S5PC100
+	default n
+	---help---
+	  This is a JPEG for Samsung S5PC100

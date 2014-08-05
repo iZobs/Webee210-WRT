@@ -1,0 +1,17 @@
+--- linux-2.6.32.33/drivers/staging/Makefile	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/staging/Makefile	2011-03-26 03:39:49.000000000 +0800
+@@ -43,3 +43,4 @@
+ obj-$(CONFIG_RAR_REGISTER)	+= rar/
+ obj-$(CONFIG_DX_SEP)		+= sep/
+ obj-$(CONFIG_IIO)		+= iio/
++obj-$(CONFIG_FB_SM7XX)		+= sm7xx/
+--- linux-2.6.32.33/drivers/staging/Kconfig	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/drivers/staging/Kconfig	2011-03-26 03:39:49.000000000 +0800
+@@ -123,5 +123,7 @@
+ 
+ source "drivers/staging/iio/Kconfig"
+ 
++source "drivers/staging/sm7xx/Kconfig"
++
+ endif # !STAGING_EXCLUDE_BUILD
+ endif # STAGING

@@ -1,0 +1,620 @@
+diff -Nur linux-2.6.32.33/arch/mips/mm/cache.c linux-2.6.32.33-loongson2f/arch/mips/mm/cache.c
+--- linux-2.6.32.33/arch/mips/mm/cache.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/cache.c	2011-03-26 03:39:49.000000000 +0800
+@@ -133,7 +133,7 @@
+ }
+ 
+ unsigned long _page_cachable_default;
+-EXPORT_SYMBOL_GPL(_page_cachable_default);
++EXPORT_SYMBOL(_page_cachable_default);
+ 
+ static inline void setup_protection_map(void)
+ {
+@@ -155,7 +155,7 @@
+ 	protection_map[15] = PAGE_SHARED;
+ }
+ 
+-void __devinit cpu_cache_init(void)
++void __cpuinit cpu_cache_init(void)
+ {
+ 	if (cpu_has_3k_cache) {
+ 		extern void __weak r3k_cache_init(void);
+diff -Nur linux-2.6.32.33/arch/mips/mm/cerr-sb1.c linux-2.6.32.33-loongson2f/arch/mips/mm/cerr-sb1.c
+--- linux-2.6.32.33/arch/mips/mm/cerr-sb1.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/cerr-sb1.c	2011-03-26 03:39:49.000000000 +0800
+@@ -567,13 +567,10 @@
+ 				datalo = ((unsigned long long)datalohi << 32) | datalolo;
+ 				ecc = dc_ecc(datalo);
+ 				if (ecc != datahi) {
+-					int bits = 0;
++					int bits;
+ 					bad_ecc |= 1 << (3-offset);
+ 					ecc ^= datahi;
+-					while (ecc) {
+-						if (ecc & 1) bits++;
+-						ecc >>= 1;
+-					}
++					bits = hweight8(ecc);
+ 					res |= (bits == 1) ? CP0_CERRD_DATA_SBE : CP0_CERRD_DATA_DBE;
+ 				}
+ 				printk("  %02X-%016llX", datahi, datalo);
+diff -Nur linux-2.6.32.33/arch/mips/mm/c-octeon.c linux-2.6.32.33-loongson2f/arch/mips/mm/c-octeon.c
+--- linux-2.6.32.33/arch/mips/mm/c-octeon.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/c-octeon.c	2011-03-26 03:39:49.000000000 +0800
+@@ -174,7 +174,7 @@
+  * Probe Octeon's caches
+  *
+  */
+-static void __devinit probe_octeon(void)
++static void __cpuinit probe_octeon(void)
+ {
+ 	unsigned long icache_size;
+ 	unsigned long dcache_size;
+@@ -235,7 +235,7 @@
+  * Setup the Octeon cache flush routines
+  *
+  */
+-void __devinit octeon_cache_init(void)
++void __cpuinit octeon_cache_init(void)
+ {
+ 	extern unsigned long ebase;
+ 	extern char except_vec2_octeon;
+diff -Nur linux-2.6.32.33/arch/mips/mm/init.c linux-2.6.32.33-loongson2f/arch/mips/mm/init.c
+--- linux-2.6.32.33/arch/mips/mm/init.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/init.c	2011-03-26 03:39:49.000000000 +0800
+@@ -462,7 +462,9 @@
+ 			__pa_symbol(&__init_end));
+ }
+ 
++#ifndef CONFIG_MIPS_PGD_C0_CONTEXT
+ unsigned long pgd_current[NR_CPUS];
++#endif
+ /*
+  * On 64-bit we've got three-level pagetables with a slightly
+  * different layout ...
+diff -Nur linux-2.6.32.33/arch/mips/mm/page.c linux-2.6.32.33-loongson2f/arch/mips/mm/page.c
+--- linux-2.6.32.33/arch/mips/mm/page.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/page.c	2011-03-26 03:39:49.000000000 +0800
+@@ -35,7 +35,7 @@
+ #include <asm/sibyte/sb1250_dma.h>
+ #endif
+ 
+-#include "uasm.h"
++#include <asm/uasm.h>
+ 
+ /* Registers used in the assembled routines. */
+ #define ZERO 0
+diff -Nur linux-2.6.32.33/arch/mips/mm/tlbex.c linux-2.6.32.33-loongson2f/arch/mips/mm/tlbex.c
+--- linux-2.6.32.33/arch/mips/mm/tlbex.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/tlbex.c	2011-03-26 03:39:49.000000000 +0800
+@@ -29,8 +29,17 @@
+ 
+ #include <asm/mmu_context.h>
+ #include <asm/war.h>
++#include <asm/uasm.h>
++
++/*
++ * TLB load/store/modify handlers.
++ *
++ * Only the fastpath gets synthesized at runtime, the slowpath for
++ * do_page_fault remains normal asm.
++ */
++extern void tlb_do_page_fault_0(void);
++extern void tlb_do_page_fault_1(void);
+ 
+-#include "uasm.h"
+ 
+ static inline int r45k_bvahwbug(void)
+ {
+@@ -82,6 +91,7 @@
+ 	label_nopage_tlbm,
+ 	label_smp_pgtable_change,
+ 	label_r3000_write_probe_fail,
++	label_large_segbits_fault,
+ #ifdef CONFIG_HUGETLB_PAGE
+ 	label_tlb_huge_update,
+ #endif
+@@ -98,6 +108,7 @@
+ UASM_L_LA(_nopage_tlbm)
+ UASM_L_LA(_smp_pgtable_change)
+ UASM_L_LA(_r3000_write_probe_fail)
++UASM_L_LA(_large_segbits_fault)
+ #ifdef CONFIG_HUGETLB_PAGE
+ UASM_L_LA(_tlb_huge_update)
+ #endif
+@@ -154,6 +165,15 @@
+ static struct uasm_label labels[128] __cpuinitdata;
+ static struct uasm_reloc relocs[128] __cpuinitdata;
+ 
++#ifndef CONFIG_MIPS_PGD_C0_CONTEXT
++/*
++ * CONFIG_MIPS_PGD_C0_CONTEXT implies 64 bit and lack of pgd_current,
++ * we cannot do r3000 under these circumstances.
++ */
++#ifdef CONFIG_64BIT
++static int check_for_high_segbits __cpuinitdata;
++#endif
++
+ /*
+  * The R3000 TLB handler is simple.
+  */
+@@ -193,6 +213,7 @@
+ 
+ 	dump_handler((u32 *)ebase, 32);
+ }
++#endif /* CONFIG_MIPS_PGD_C0_CONTEXT */
+ 
+ /*
+  * The R4000 TLB handler is much more complicated. We have two
+@@ -491,16 +512,42 @@
+ build_get_pmde64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
+ 		 unsigned int tmp, unsigned int ptr)
+ {
++#ifndef CONFIG_MIPS_PGD_C0_CONTEXT
+ 	long pgdc = (long)pgd_current;
+-
++#endif
+ 	/*
+ 	 * The vmalloc handling is not in the hotpath.
+ 	 */
+ 	uasm_i_dmfc0(p, tmp, C0_BADVADDR);
+-	uasm_il_bltz(p, r, tmp, label_vmalloc);
++
++	if (check_for_high_segbits) {
++		/*
++		 * The kernel currently implicitely assumes that the
++		 * MIPS SEGBITS parameter for the processor is
++		 * (PGDIR_SHIFT+PGDIR_BITS) or less, and will never
++		 * allocate virtual addresses outside the maximum
++		 * range for SEGBITS = (PGDIR_SHIFT+PGDIR_BITS). But
++		 * that doesn't prevent user code from accessing the
++		 * higher xuseg addresses.  Here, we make sure that
++		 * everything but the lower xuseg addresses goes down
++		 * the module_alloc/vmalloc path.
++		 */
++		uasm_i_dsrl_safe(p, ptr, tmp, PGDIR_SHIFT + PGD_ORDER + PAGE_SHIFT - 3);
++		uasm_il_bnez(p, r, ptr, label_vmalloc);
++	} else {
++		uasm_il_bltz(p, r, tmp, label_vmalloc);
++	}
+ 	/* No uasm_i_nop needed here, since the next insn doesn't touch TMP. */
+ 
+-#ifdef CONFIG_SMP
++#ifdef CONFIG_MIPS_PGD_C0_CONTEXT
++	/*
++	 * &pgd << 11 stored in CONTEXT [23..63].
++	 */
++	UASM_i_MFC0(p, ptr, C0_CONTEXT);
++	uasm_i_dins(p, ptr, 0, 0, 23); /* Clear lower 23 bits of context. */
++	uasm_i_ori(p, ptr, ptr, 0x540); /* 1 0  1 0 1  << 6  xkphys cached */
++	uasm_i_drotr(p, ptr, ptr, 11);
++#elif defined(CONFIG_SMP)
+ # ifdef  CONFIG_MIPS_MT_SMTC
+ 	/*
+ 	 * SMTC uses TCBind value as "CPU" index
+@@ -514,7 +561,7 @@
+ 	 */
+ 	uasm_i_dmfc0(p, ptr, C0_CONTEXT);
+ 	uasm_i_dsrl(p, ptr, ptr, 23);
+-#endif
++# endif
+ 	UASM_i_LA_mostly(p, tmp, pgdc);
+ 	uasm_i_daddu(p, ptr, ptr, tmp);
+ 	uasm_i_dmfc0(p, tmp, C0_BADVADDR);
+@@ -540,28 +587,64 @@
+ 	uasm_i_daddu(p, ptr, ptr, tmp); /* add in pmd offset */
+ }
+ 
++enum vmalloc64_mode {not_refill, refill};
+ /*
+  * BVADDR is the faulting address, PTR is scratch.
+  * PTR will hold the pgd for vmalloc.
+  */
+ static void __cpuinit
+ build_get_pgd_vmalloc64(u32 **p, struct uasm_label **l, struct uasm_reloc **r,
+-			unsigned int bvaddr, unsigned int ptr)
++			unsigned int bvaddr, unsigned int ptr,
++			enum vmalloc64_mode mode)
+ {
+ 	long swpd = (long)swapper_pg_dir;
++	int single_insn_swpd;
++	int did_vmalloc_branch = 0;
++
++	single_insn_swpd = uasm_in_compat_space_p(swpd) && !uasm_rel_lo(swpd);
+ 
+ 	uasm_l_vmalloc(l, *p);
+ 
+-	if (uasm_in_compat_space_p(swpd) && !uasm_rel_lo(swpd)) {
+-		uasm_il_b(p, r, label_vmalloc_done);
+-		uasm_i_lui(p, ptr, uasm_rel_hi(swpd));
+-	} else {
+-		UASM_i_LA_mostly(p, ptr, swpd);
+-		uasm_il_b(p, r, label_vmalloc_done);
+-		if (uasm_in_compat_space_p(swpd))
+-			uasm_i_addiu(p, ptr, ptr, uasm_rel_lo(swpd));
+-		else
+-			uasm_i_daddiu(p, ptr, ptr, uasm_rel_lo(swpd));
++	if (mode == refill && check_for_high_segbits) {
++		if (single_insn_swpd) {
++			uasm_il_bltz(p, r, bvaddr, label_vmalloc_done);
++			uasm_i_lui(p, ptr, uasm_rel_hi(swpd));
++			did_vmalloc_branch = 1;
++			/* fall through */
++		} else {
++			uasm_il_bgez(p, r, bvaddr, label_large_segbits_fault);
++		}
++	}
++	if (!did_vmalloc_branch) {
++		if (uasm_in_compat_space_p(swpd) && !uasm_rel_lo(swpd)) {
++			uasm_il_b(p, r, label_vmalloc_done);
++			uasm_i_lui(p, ptr, uasm_rel_hi(swpd));
++		} else {
++			UASM_i_LA_mostly(p, ptr, swpd);
++			uasm_il_b(p, r, label_vmalloc_done);
++			if (uasm_in_compat_space_p(swpd))
++				uasm_i_addiu(p, ptr, ptr, uasm_rel_lo(swpd));
++			else
++				uasm_i_daddiu(p, ptr, ptr, uasm_rel_lo(swpd));
++		}
++	}
++	if (mode == refill && check_for_high_segbits) {
++		uasm_l_large_segbits_fault(l, *p);
++		/*
++		 * We get here if we are an xsseg address, or if we are
++		 * an xuseg address above (PGDIR_SHIFT+PGDIR_BITS) boundary.
++		 *
++		 * Ignoring xsseg (assume disabled so would generate
++		 * (address errors?), the only remaining possibility
++		 * is the upper xuseg addresses.  On processors with
++		 * TLB_SEGBITS <= PGDIR_SHIFT+PGDIR_BITS, these
++		 * addresses would have taken an address error. We try
++		 * to mimic that here by taking a load/istream page
++		 * fault.
++		 */
++		UASM_i_LA(p, ptr, (unsigned long)tlb_do_page_fault_0);
++		uasm_i_jr(p, ptr);
++		uasm_i_nop(p);
+ 	}
+ }
+ 
+@@ -762,7 +845,7 @@
+ #endif
+ 
+ #ifdef CONFIG_64BIT
+-	build_get_pgd_vmalloc64(&p, &l, &r, K0, K1);
++	build_get_pgd_vmalloc64(&p, &l, &r, K0, K1, refill);
+ #endif
+ 
+ 	/*
+@@ -872,15 +955,6 @@
+ }
+ 
+ /*
+- * TLB load/store/modify handlers.
+- *
+- * Only the fastpath gets synthesized at runtime, the slowpath for
+- * do_page_fault remains normal asm.
+- */
+-extern void tlb_do_page_fault_0(void);
+-extern void tlb_do_page_fault_1(void);
+-
+-/*
+  * 128 instructions for the fastpath handler is generous and should
+  * never be exceeded.
+  */
+@@ -1030,6 +1104,7 @@
+ 	iPTE_LW(p, pte, ptr);
+ }
+ 
++#ifndef CONFIG_MIPS_PGD_C0_CONTEXT
+ /*
+  * R3000 style TLB load/store/modify handlers.
+  */
+@@ -1181,6 +1256,7 @@
+ 
+ 	dump_handler(handle_tlbm, ARRAY_SIZE(handle_tlbm));
+ }
++#endif /* CONFIG_MIPS_PGD_C0_CONTEXT */
+ 
+ /*
+  * R4000 style TLB load/store/modify handlers.
+@@ -1232,7 +1308,7 @@
+ 	uasm_i_eret(p); /* return from trap */
+ 
+ #ifdef CONFIG_64BIT
+-	build_get_pgd_vmalloc64(p, l, r, tmp, ptr);
++	build_get_pgd_vmalloc64(p, l, r, tmp, ptr, not_refill);
+ #endif
+ }
+ 
+@@ -1394,6 +1470,10 @@
+ 	 */
+ 	static int run_once = 0;
+ 
++#ifdef CONFIG_64BIT
++	check_for_high_segbits = current_cpu_data.vmbits > (PGDIR_SHIFT + PGD_ORDER + PAGE_SHIFT - 3);
++#endif
++
+ 	switch (current_cpu_type()) {
+ 	case CPU_R2000:
+ 	case CPU_R3000:
+@@ -1402,6 +1482,7 @@
+ 	case CPU_TX3912:
+ 	case CPU_TX3922:
+ 	case CPU_TX3927:
++#ifndef CONFIG_MIPS_PGD_C0_CONTEXT
+ 		build_r3000_tlb_refill_handler();
+ 		if (!run_once) {
+ 			build_r3000_tlb_load_handler();
+@@ -1409,6 +1490,9 @@
+ 			build_r3000_tlb_modify_handler();
+ 			run_once++;
+ 		}
++#else
++		panic("No R3000 TLB refill handler");
++#endif
+ 		break;
+ 
+ 	case CPU_R6000:
+diff -Nur linux-2.6.32.33/arch/mips/mm/uasm.c linux-2.6.32.33-loongson2f/arch/mips/mm/uasm.c
+--- linux-2.6.32.33/arch/mips/mm/uasm.c	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/uasm.c	2011-03-26 03:39:49.000000000 +0800
+@@ -19,8 +19,7 @@
+ #include <asm/inst.h>
+ #include <asm/elf.h>
+ #include <asm/bugs.h>
+-
+-#include "uasm.h"
++#include <asm/uasm.h>
+ 
+ enum fields {
+ 	RS = 0x001,
+@@ -60,11 +59,11 @@
+ 	insn_beql, insn_bgez, insn_bgezl, insn_bltz, insn_bltzl,
+ 	insn_bne, insn_cache, insn_daddu, insn_daddiu, insn_dmfc0,
+ 	insn_dmtc0, insn_dsll, insn_dsll32, insn_dsra, insn_dsrl,
+-	insn_dsrl32, insn_dsubu, insn_eret, insn_j, insn_jal, insn_jr,
+-	insn_ld, insn_ll, insn_lld, insn_lui, insn_lw, insn_mfc0,
++	insn_dsrl32, insn_drotr, insn_dsubu, insn_eret, insn_j, insn_jal,
++	insn_jr, insn_ld, insn_ll, insn_lld, insn_lui, insn_lw, insn_mfc0,
+ 	insn_mtc0, insn_or, insn_ori, insn_pref, insn_rfe, insn_sc, insn_scd,
+ 	insn_sd, insn_sll, insn_sra, insn_srl, insn_subu, insn_sw,
+-	insn_tlbp, insn_tlbwi, insn_tlbwr, insn_xor, insn_xori
++	insn_tlbp, insn_tlbwi, insn_tlbwr, insn_xor, insn_xori, insn_dins
+ };
+ 
+ struct insn {
+@@ -104,6 +103,7 @@
+ 	{ insn_dsra, M(spec_op, 0, 0, 0, 0, dsra_op), RT | RD | RE },
+ 	{ insn_dsrl, M(spec_op, 0, 0, 0, 0, dsrl_op), RT | RD | RE },
+ 	{ insn_dsrl32, M(spec_op, 0, 0, 0, 0, dsrl32_op), RT | RD | RE },
++	{ insn_drotr, M(spec_op, 1, 0, 0, 0, dsrl_op), RT | RD | RE },
+ 	{ insn_dsubu, M(spec_op, 0, 0, 0, 0, dsubu_op), RS | RT | RD },
+ 	{ insn_eret,  M(cop0_op, cop_op, 0, 0, 0, eret_op),  0 },
+ 	{ insn_j,  M(j_op, 0, 0, 0, 0, 0),  JIMM },
+@@ -133,6 +133,7 @@
+ 	{ insn_tlbwr,  M(cop0_op, cop_op, 0, 0, 0, tlbwr_op),  0 },
+ 	{ insn_xor,  M(spec_op, 0, 0, 0, 0, xor_op),  RS | RT | RD },
+ 	{ insn_xori,  M(xori_op, 0, 0, 0, 0, 0),  RS | RT | UIMM },
++	{ insn_dins, M(spec3_op, 0, 0, 0, 0, dins_op), RS | RT | RD | RE },
+ 	{ insn_invalid, 0, 0 }
+ };
+ 
+@@ -305,6 +306,12 @@
+ 	build_insn(buf, insn##op, b, a, c);		\
+ }
+ 
++#define I_u2u1msbu3(op)					\
++Ip_u2u1msbu3(op)					\
++{							\
++	build_insn(buf, insn##op, b, a, c+d-1, c);	\
++}
++
+ #define I_u1u2(op)					\
+ Ip_u1u2(op)						\
+ {							\
+@@ -350,6 +357,7 @@
+ I_u2u1u3(_dsra)
+ I_u2u1u3(_dsrl)
+ I_u2u1u3(_dsrl32)
++I_u2u1u3(_drotr)
+ I_u3u1u2(_dsubu)
+ I_0(_eret)
+ I_u1(_j)
+@@ -379,6 +387,7 @@
+ I_0(_tlbwr)
+ I_u3u1u2(_xor)
+ I_u2u1u3(_xori)
++I_u2u1msbu3(_dins);
+ 
+ /* Handle labels. */
+ void __cpuinit uasm_build_label(struct uasm_label **lab, u32 *addr, int lid)
+diff -Nur linux-2.6.32.33/arch/mips/mm/uasm.h linux-2.6.32.33-loongson2f/arch/mips/mm/uasm.h
+--- linux-2.6.32.33/arch/mips/mm/uasm.h	2011-03-15 05:30:16.000000000 +0800
++++ linux-2.6.32.33-loongson2f/arch/mips/mm/uasm.h	1970-01-01 08:00:00.000000000 +0800
+@@ -1,185 +0,0 @@
+-/*
+- * This file is subject to the terms and conditions of the GNU General Public
+- * License.  See the file "COPYING" in the main directory of this archive
+- * for more details.
+- *
+- * Copyright (C) 2004, 2005, 2006, 2008  Thiemo Seufer
+- * Copyright (C) 2005  Maciej W. Rozycki
+- * Copyright (C) 2006  Ralf Baechle (ralf@linux-mips.org)
+- */
+-
+-#include <linux/types.h>
+-
+-#define Ip_u1u2u3(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, unsigned int b, unsigned int c)
+-
+-#define Ip_u2u1u3(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, unsigned int b, unsigned int c)
+-
+-#define Ip_u3u1u2(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, unsigned int b, unsigned int c)
+-
+-#define Ip_u1u2s3(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, unsigned int b, signed int c)
+-
+-#define Ip_u2s3u1(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, signed int b, unsigned int c)
+-
+-#define Ip_u2u1s3(op)							\
+-void __cpuinit								\
+-uasm_i##op(u32 **buf, unsigned int a, unsigned int b, signed int c)
+-
+-#define Ip_u1u2(op)							\
+-void __cpuinit uasm_i##op(u32 **buf, unsigned int a, unsigned int b)
+-
+-#define Ip_u1s2(op)							\
+-void __cpuinit uasm_i##op(u32 **buf, unsigned int a, signed int b)
+-
+-#define Ip_u1(op) void __cpuinit uasm_i##op(u32 **buf, unsigned int a)
+-
+-#define Ip_0(op) void __cpuinit uasm_i##op(u32 **buf)
+-
+-Ip_u2u1s3(_addiu);
+-Ip_u3u1u2(_addu);
+-Ip_u2u1u3(_andi);
+-Ip_u3u1u2(_and);
+-Ip_u1u2s3(_beq);
+-Ip_u1u2s3(_beql);
+-Ip_u1s2(_bgez);
+-Ip_u1s2(_bgezl);
+-Ip_u1s2(_bltz);
+-Ip_u1s2(_bltzl);
+-Ip_u1u2s3(_bne);
+-Ip_u2s3u1(_cache);
+-Ip_u1u2u3(_dmfc0);
+-Ip_u1u2u3(_dmtc0);
+-Ip_u2u1s3(_daddiu);
+-Ip_u3u1u2(_daddu);
+-Ip_u2u1u3(_dsll);
+-Ip_u2u1u3(_dsll32);
+-Ip_u2u1u3(_dsra);
+-Ip_u2u1u3(_dsrl);
+-Ip_u2u1u3(_dsrl32);
+-Ip_u3u1u2(_dsubu);
+-Ip_0(_eret);
+-Ip_u1(_j);
+-Ip_u1(_jal);
+-Ip_u1(_jr);
+-Ip_u2s3u1(_ld);
+-Ip_u2s3u1(_ll);
+-Ip_u2s3u1(_lld);
+-Ip_u1s2(_lui);
+-Ip_u2s3u1(_lw);
+-Ip_u1u2u3(_mfc0);
+-Ip_u1u2u3(_mtc0);
+-Ip_u2u1u3(_ori);
+-Ip_u3u1u2(_or);
+-Ip_u2s3u1(_pref);
+-Ip_0(_rfe);
+-Ip_u2s3u1(_sc);
+-Ip_u2s3u1(_scd);
+-Ip_u2s3u1(_sd);
+-Ip_u2u1u3(_sll);
+-Ip_u2u1u3(_sra);
+-Ip_u2u1u3(_srl);
+-Ip_u3u1u2(_subu);
+-Ip_u2s3u1(_sw);
+-Ip_0(_tlbp);
+-Ip_0(_tlbwi);
+-Ip_0(_tlbwr);
+-Ip_u3u1u2(_xor);
+-Ip_u2u1u3(_xori);
+-
+-/* Handle labels. */
+-struct uasm_label {
+-	u32 *addr;
+-	int lab;
+-};
+-
+-void __cpuinit uasm_build_label(struct uasm_label **lab, u32 *addr, int lid);
+-#ifdef CONFIG_64BIT
+-int uasm_in_compat_space_p(long addr);
+-#endif
+-int uasm_rel_hi(long val);
+-int uasm_rel_lo(long val);
+-void UASM_i_LA_mostly(u32 **buf, unsigned int rs, long addr);
+-void UASM_i_LA(u32 **buf, unsigned int rs, long addr);
+-
+-#define UASM_L_LA(lb)							\
+-static inline void __cpuinit uasm_l##lb(struct uasm_label **lab, u32 *addr) \
+-{									\
+-	uasm_build_label(lab, addr, label##lb);				\
+-}
+-
+-/* convenience macros for instructions */
+-#ifdef CONFIG_64BIT
+-# define UASM_i_LW(buf, rs, rt, off) uasm_i_ld(buf, rs, rt, off)
+-# define UASM_i_SW(buf, rs, rt, off) uasm_i_sd(buf, rs, rt, off)
+-# define UASM_i_SLL(buf, rs, rt, sh) uasm_i_dsll(buf, rs, rt, sh)
+-# define UASM_i_SRA(buf, rs, rt, sh) uasm_i_dsra(buf, rs, rt, sh)
+-# define UASM_i_SRL(buf, rs, rt, sh) uasm_i_dsrl(buf, rs, rt, sh)
+-# define UASM_i_MFC0(buf, rt, rd...) uasm_i_dmfc0(buf, rt, rd)
+-# define UASM_i_MTC0(buf, rt, rd...) uasm_i_dmtc0(buf, rt, rd)
+-# define UASM_i_ADDIU(buf, rs, rt, val) uasm_i_daddiu(buf, rs, rt, val)
+-# define UASM_i_ADDU(buf, rs, rt, rd) uasm_i_daddu(buf, rs, rt, rd)
+-# define UASM_i_SUBU(buf, rs, rt, rd) uasm_i_dsubu(buf, rs, rt, rd)
+-# define UASM_i_LL(buf, rs, rt, off) uasm_i_lld(buf, rs, rt, off)
+-# define UASM_i_SC(buf, rs, rt, off) uasm_i_scd(buf, rs, rt, off)
+-#else
+-# define UASM_i_LW(buf, rs, rt, off) uasm_i_lw(buf, rs, rt, off)
+-# define UASM_i_SW(buf, rs, rt, off) uasm_i_sw(buf, rs, rt, off)
+-# define UASM_i_SLL(buf, rs, rt, sh) uasm_i_sll(buf, rs, rt, sh)
+-# define UASM_i_SRA(buf, rs, rt, sh) uasm_i_sra(buf, rs, rt, sh)
+-# define UASM_i_SRL(buf, rs, rt, sh) uasm_i_srl(buf, rs, rt, sh)
+-# define UASM_i_MFC0(buf, rt, rd...) uasm_i_mfc0(buf, rt, rd)
+-# define UASM_i_MTC0(buf, rt, rd...) uasm_i_mtc0(buf, rt, rd)
+-# define UASM_i_ADDIU(buf, rs, rt, val) uasm_i_addiu(buf, rs, rt, val)
+-# define UASM_i_ADDU(buf, rs, rt, rd) uasm_i_addu(buf, rs, rt, rd)
+-# define UASM_i_SUBU(buf, rs, rt, rd) uasm_i_subu(buf, rs, rt, rd)
+-# define UASM_i_LL(buf, rs, rt, off) uasm_i_ll(buf, rs, rt, off)
+-# define UASM_i_SC(buf, rs, rt, off) uasm_i_sc(buf, rs, rt, off)
+-#endif
+-
+-#define uasm_i_b(buf, off) uasm_i_beq(buf, 0, 0, off)
+-#define uasm_i_beqz(buf, rs, off) uasm_i_beq(buf, rs, 0, off)
+-#define uasm_i_beqzl(buf, rs, off) uasm_i_beql(buf, rs, 0, off)
+-#define uasm_i_bnez(buf, rs, off) uasm_i_bne(buf, rs, 0, off)
+-#define uasm_i_bnezl(buf, rs, off) uasm_i_bnel(buf, rs, 0, off)
+-#define uasm_i_move(buf, a, b) UASM_i_ADDU(buf, a, 0, b)
+-#define uasm_i_nop(buf) uasm_i_sll(buf, 0, 0, 0)
+-#define uasm_i_ssnop(buf) uasm_i_sll(buf, 0, 0, 1)
+-#define uasm_i_ehb(buf) uasm_i_sll(buf, 0, 0, 3)
+-
+-/* Handle relocations. */
+-struct uasm_reloc {
+-	u32 *addr;
+-	unsigned int type;
+-	int lab;
+-};
+-
+-/* This is zero so we can use zeroed label arrays. */
+-#define UASM_LABEL_INVALID 0
+-
+-void uasm_r_mips_pc16(struct uasm_reloc **rel, u32 *addr, int lid);
+-void uasm_resolve_relocs(struct uasm_reloc *rel, struct uasm_label *lab);
+-void uasm_move_relocs(struct uasm_reloc *rel, u32 *first, u32 *end, long off);
+-void uasm_move_labels(struct uasm_label *lab, u32 *first, u32 *end, long off);
+-void uasm_copy_handler(struct uasm_reloc *rel, struct uasm_label *lab,
+-	u32 *first, u32 *end, u32 *target);
+-int uasm_insn_has_bdelay(struct uasm_reloc *rel, u32 *addr);
+-
+-/* Convenience functions for labeled branches. */
+-void uasm_il_bltz(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);
+-void uasm_il_b(u32 **p, struct uasm_reloc **r, int lid);
+-void uasm_il_beqz(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);
+-void uasm_il_beqzl(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);
+-void uasm_il_bne(u32 **p, struct uasm_reloc **r, unsigned int reg1,
+-		 unsigned int reg2, int lid);
+-void uasm_il_bnez(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);
+-void uasm_il_bgezl(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);
+-void uasm_il_bgez(u32 **p, struct uasm_reloc **r, unsigned int reg, int lid);

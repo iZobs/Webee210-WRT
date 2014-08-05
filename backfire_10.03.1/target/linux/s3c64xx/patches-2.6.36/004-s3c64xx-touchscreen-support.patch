@@ -1,0 +1,48 @@
+diff -Nru linux-2.6.36/drivers/input/touchscreen/Kconfig linux-2.6.36-Firendyarm/drivers/input/touchscreen/Kconfig
+--- linux-2.6.36/drivers/input/touchscreen/Kconfig	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/input/touchscreen/Kconfig	2010-10-26 08:47:50.000000000 +0100
+@@ -178,6 +178,31 @@
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called s3c2410_ts.
+ 
++config TOUCHSCREEN_MINI6410
++	tristate "S3C touchscreen driver for Mini6410"
++	depends on ARCH_S3C2410 || ARCH_S3C64XX || ARCH_S5P64XX || ARCH_S5PC1XX
++	default y
++	help
++	  Say Y here to enable the driver for the touchscreen on the
++	  FriendlyARM Mini6410 development board.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mini6410-ts.
++
++config TOUCHSCREEN_1WIRE
++	tristate "Mini6410 1-Wire host and Touch Screen Driver"
++	depends on MACH_MINI6410
++	help
++	  Say Y here to enable the 1-Wire host and Touch Screen driver for
++	  FriendlyARM Mini6410 development board.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called mini6410_1wire_host.
++
+ config TOUCHSCREEN_GUNZE
+ 	tristate "Gunze AHL-51S touchscreen"
+ 	select SERIO
+diff -Nru linux-2.6.36/drivers/input/touchscreen/Makefile linux-2.6.36-Firendyarm/drivers/input/touchscreen/Makefile
+--- linux-2.6.36/drivers/input/touchscreen/Makefile	2010-10-20 21:30:22.000000000 +0100
++++ linux-2.6.36-Firendyarm/drivers/input/touchscreen/Makefile	2010-11-10 04:34:26.000000000 +0000
+@@ -52,3 +52,8 @@
+ obj-$(CONFIG_TOUCHSCREEN_WM97XX_ZYLONITE)	+= zylonite-wm97xx.o
+ obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
+ obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
++obj-$(CONFIG_TOUCHSCREEN_MINI6410)	+= mini6410-ts.o
++obj-$(CONFIG_TOUCHSCREEN_1WIRE)		+= mini6410_1wire_host.o
++obj-$(CONFIG_FB_S3C_EXT_TFT800480)	+= ts-if.o
++obj-$(CONFIG_FB_S3C_EXT_TFT480272)	+= ts-if.o
++obj-$(CONFIG_FB_S3C_EXT_X240320)	+= ts-if.o
+ 

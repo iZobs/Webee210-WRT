@@ -1,0 +1,15 @@
+
+diff -Nur linux-2.6.32.2/arch/arm/plat-s3c24xx/Kconfig linux-2.6.32.2-mini2440/arch/arm/plat-s3c24xx/Kconfig
+--- linux-2.6.32.2/arch/arm/plat-s3c24xx/Kconfig	2009-12-19 06:27:07.000000000 +0800
++++ linux-2.6.32.2-mini2440/arch/arm/plat-s3c24xx/Kconfig	2009-12-30 11:01:16.000000000 +0800
+@@ -178,4 +178,9 @@
+ 	help
+ 	  Common machine code for SMDK2410 and SMDK2440
+ 
++config MACH_FRIENDLY_ARM
++	bool
++	help
++	  Common machine code for FriendlyARM boards i.e. Mini2440, etc
++
+ endif
+

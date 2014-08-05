@@ -1,0 +1,87 @@
+--- linux-2.6.32.27/drivers/mtd/mtdpart.c.orig	2012-08-29 21:36:03.333579640 +0800
++++ linux-2.6.32.27/drivers/mtd/mtdpart.c	2012-08-29 20:43:21.361579584 +0800
+@@ -21,6 +21,7 @@
+ #include <linux/root_dev.h>
+ #include <linux/magic.h>
+ 
++extern int getFlashSize;  // get flash size
+ #define MTD_ERASE_PARTIAL	0x8000 /* partition only covers parts of an erase block */
+ 
+ /* Our partition linked list */
+@@ -740,6 +741,7 @@
+ 	int i, ret;
+ 
+ 	printk(KERN_NOTICE "Creating %d MTD partitions on \"%s\":\n", nbparts, master->name);
++	getFlashSize = master->size >> 10;
+ 
+ 	for (i = 0; i < nbparts; i++) {
+ 		slave = add_one_partition(master, parts + i, i, cur_offset);
+--- linux-2.6.32.27/arch/arm/kernel/setup.c.orig	2011-12-08 01:27:51.891197337 +0800
++++ linux-2.6.32.27/arch/arm/kernel/setup.c	2011-12-08 01:34:08.938956375 +0800
+@@ -804,6 +804,11 @@
+ 	NULL
+ };
+ 
++int getFlashSize = 0;
++#if defined(CONFIG_PLAT_S3C24XX)
++unsigned long s3c24xx_cpu_clk = 0;
++#endif
++
+ static int c_show(struct seq_file *m, void *v)
+ {
+ 	int i;
+@@ -858,7 +863,10 @@
+ 	seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
+ 
+ 	seq_puts(m, "\n");
+-
++	seq_printf(m, "FlashSize\t\t: %d\n",getFlashSize);
++#if defined(CONFIG_PLAT_S3C24XX)
++	seq_printf(m, "CPUClock\t\t: %d\n",s3c24xx_cpu_clk / 1000000);
++#endif
+ 	seq_printf(m, "Hardware\t: %s\n", machine_name);
+ 	seq_printf(m, "Revision\t: %04x\n", system_rev);
+ 	seq_printf(m, "Serial\t\t: %08x%08x\n",
+--- linux-2.6.32.27/arch/arm/plat-s3c24xx/s3c244x.c.orig	2011-12-08 01:33:36.498956373 +0800
++++ linux-2.6.32.27/arch/arm/plat-s3c24xx/s3c244x.c	2011-12-08 01:33:36.530956373 +0800
+@@ -46,6 +46,8 @@
+ #include <plat/pm.h>
+ #include <plat/pll.h>
+ 
++extern unsigned long s3c24xx_cpu_clk;
++
+ static struct map_desc s3c244x_iodesc[] __initdata = {
+ 	IODESC_ENT(CLKPWR),
+ 	IODESC_ENT(TIMER),
+@@ -86,7 +88,7 @@
+ 	xtal = clk_get_rate(xtal_clk);
+ 	clk_put(xtal_clk);
+ 
+-	fclk = s3c24xx_get_pll(__raw_readl(S3C2410_MPLLCON), xtal) * 2;
++	fclk = s3c24xx_get_pll(__raw_readl(S3C2410_MPLLCON), xtal) * 2; s3c24xx_cpu_clk = fclk;
+ 
+ 	clkdiv = __raw_readl(S3C2410_CLKDIVN);
+ 	camdiv = __raw_readl(S3C2440_CAMDIVN);
+#
+# mach-s3c2410 --> plat-s3c24xx
+#
+--- linux-2.6.32.27/arch/arm/mach-s3c2410/s3c2410.c.orig	2012-08-30 11:08:17.229875443 +0800
++++ linux-2.6.32.27/arch/arm/mach-s3c2410/s3c2410.c	2012-08-30 11:09:36.717875480 +0800
+@@ -40,6 +40,8 @@
+ #include <plat/clock.h>
+ #include <plat/pll.h>
+ 
++extern unsigned long s3c24xx_cpu_clk;
++
+ /* Initial IO mappings */
+ 
+ static struct map_desc s3c2410_iodesc[] __initdata = {
+@@ -84,7 +86,7 @@
+ 	/* now we've got our machine bits initialised, work out what
+ 	 * clocks we've got */
+ 
+-	fclk = s3c24xx_get_pll(__raw_readl(S3C2410_MPLLCON), xtal);
++	fclk = s3c24xx_get_pll(__raw_readl(S3C2410_MPLLCON), xtal); s3c24xx_cpu_clk = fclk;
+ 
+ 	tmp = __raw_readl(S3C2410_CLKDIVN);
+ 
