@@ -65,7 +65,8 @@ __注意：V=99指的是打印详细编译信息__
 
 勾选了SDK编译选项的编译时间要较长，具体还要看host的性能。= =!          
 
-编译完成后在目录的bin下面会有SDK和uImage,yaffs文件系统。
+编译完成后在目录的bin下面会有SDK和uImage,yaffs文件系统。     
+
      ⇒  ls
      md5sums
      OpenWrt-ImageBuilder-s5pc1xx-for-Linux-i686.tar.bz2
@@ -82,8 +83,7 @@ __注意：V=99指的是打印详细编译信息__
 [webee210v2 SD卡镜像烧写教程](http://bbs.smartwebee.com/forum/view/253)
 
 启动系统，可以看到这个：
-{% highlight bash %}
-
+```
 Please press Enter to activate this console.                                                                              
 BusyBox v1.15.3 (2014-08-05 16:31:45 CST) built-in shell (ash)                                                            
 Enter 'help' for a list of built-in commands.                                                                             
@@ -101,7 +101,7 @@ root@(none):/#
 root@(none):/#                                                                                                            
 root@(none):/# 
 
-{% endhighlight %}
+```
 
 ###编译openWRT内核
 
@@ -115,7 +115,6 @@ root@(none):/#
       make[3]: Leaving directory `/home/webee-wrt/openWRT/backfire_10.03.1/target/linux/s5pc1xx'
       make[2]: Leaving directory `/home/webee-wrt/openWRT/backfire_10.03.1/target/linux'
       make[1]: Leaving directory `/home/webee-wrt/openWRT/backfire_10.03.1'
-
 
 
 编译内核:
