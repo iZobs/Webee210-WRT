@@ -10,17 +10,16 @@
 	$ git clone https://github.com/iZobs/Webee210-WRT
 
 ###开发规划
-
-	- 添加USB wifi驱动
-	- 添加DM9000驱动
-	- 支持网蜂zigbee协调器
-	- 支持网蜂蓝牙协调器
+- 添加USB wifi驱动
+- 添加DM9000驱动
+- 支持网蜂zigbee协调器
+- 支持网蜂蓝牙协调器
 
 ###update
 
 __2014-8-4__               
 
-	- 成功移植内核，启动openWRT文件系统成功
+- 成功移植内核，启动openWRT文件系统成功
 
 ###使用和参与开发
 
