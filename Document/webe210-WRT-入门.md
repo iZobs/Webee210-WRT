@@ -16,7 +16,9 @@ or
 
 	$ svn co svn://svn.openwrt.org.cn/dreambox/branches/openosom openosom
 
-获取使用webee210的openWRT源码:
+获取使用webee210的openWRT源码:    
+
+	$ git clone https://github.com/iZobs/Webee210-WRT
 
 
 ###openWRT的目录框架
