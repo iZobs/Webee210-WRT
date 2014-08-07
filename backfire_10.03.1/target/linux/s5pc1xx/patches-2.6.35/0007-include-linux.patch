@@ -1,0 +1,250 @@
+diff -Nur linux-2.6.35.7//include/linux/amba/mmci.h tiny210//include/linux/amba/mmci.h
+--- linux-2.6.35.7//include/linux/amba/mmci.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/amba/mmci.h	2011-08-08 12:52:13.000000000 +0800
+@@ -5,6 +5,15 @@
+ #define AMBA_MMCI_H
+ 
+ #include <linux/mmc/host.h>
++#include <linux/mmc/card.h>
++#include <linux/mmc/sdio_func.h>
++
++struct embedded_sdio_data {
++        struct sdio_cis cis;
++        struct sdio_cccr cccr;
++        struct sdio_embedded_func *funcs;
++        int num_funcs;
++};
+ 
+ /**
+  * struct mmci_platform_data - platform configuration for the MMCI
+@@ -34,6 +43,9 @@
+ 	int	gpio_wp;
+ 	int	gpio_cd;
+ 	unsigned long capabilities;
++	unsigned int status_irq;
++	struct embedded_sdio_data *embedded_sdio;
++	int (*register_status_notify)(void (*callback)(int card_present, void *dev_id), void *dev_id);
+ };
+ 
+ #endif
+--- linux-2.6.35.7//include/linux/dm9000.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/dm9000.h	2011-08-11 12:03:16.000000000 +0800
+@@ -28,6 +28,7 @@
+ struct dm9000_plat_data {
+ 	unsigned int	flags;
+ 	unsigned char	dev_addr[6];
++	unsigned char	param_addr[6];
+ 
+ 	/* allow replacement IO routines */
+ 
+--- linux-2.6.35.7//include/linux/genhd.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/genhd.h	2011-08-08 12:52:13.000000000 +0800
+@@ -21,6 +21,8 @@
+ #define disk_to_dev(disk)	(&(disk)->part0.__dev)
+ #define part_to_dev(part)	(&((part)->__dev))
+ 
++#define GENHD_PART_NAME_SIZE	128
++
+ extern struct device_type part_type;
+ extern struct kobject *block_depr;
+ extern struct class block_class;
+@@ -106,6 +108,7 @@
+ 	struct disk_stats dkstats;
+ #endif
+ 	struct rcu_head rcu_head;
++	char partition_name[GENHD_PART_NAME_SIZE];
+ };
+ 
+ #define GENHD_FL_REMOVABLE			1
+--- linux-2.6.35.7//include/linux/if_pppox.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/if_pppox.h	2011-08-08 12:52:13.000000000 +0800
+@@ -27,6 +27,8 @@
+ #include <linux/ppp_channel.h>
+ #endif /* __KERNEL__ */
+ #include <linux/if_pppol2tp.h>
++#include <linux/if_pppolac.h>
++#include <linux/if_pppopns.h>
+ 
+ /* For user-space programs to pick up these definitions
+  * which they wouldn't get otherwise without defining __KERNEL__
+@@ -51,7 +53,9 @@
+  */ 
+ #define PX_PROTO_OE    0 /* Currently just PPPoE */
+ #define PX_PROTO_OL2TP 1 /* Now L2TP also */
+-#define PX_MAX_PROTO   2
++#define PX_PROTO_OLAC  2
++#define PX_PROTO_OPNS  3
++#define PX_MAX_PROTO   4
+ 
+ struct sockaddr_pppox { 
+        sa_family_t     sa_family;            /* address family, AF_PPPOX */ 
+@@ -150,6 +154,22 @@
+ 					     relayed to (PPPoE relaying) */
+ };
+ 
++struct pppolac_opt {
++	__u32	local;
++	__u32	remote;
++	__u16	sequence;
++	__u8	sequencing;
++	int	(*backlog_rcv)(struct sock *sk_udp, struct sk_buff *skb);
++};
++
++struct pppopns_opt {
++	__u16	local;
++	__u16	remote;
++	__u32	sequence;
++	void	(*data_ready)(struct sock *sk_raw, int length);
++	int	(*backlog_rcv)(struct sock *sk_raw, struct sk_buff *skb);
++};
++
+ #include <net/sock.h>
+ 
+ struct pppox_sock {
+@@ -159,6 +179,8 @@
+ 	struct pppox_sock	*next;	  /* for hash table */
+ 	union {
+ 		struct pppoe_opt pppoe;
++		struct pppolac_opt lac;
++		struct pppopns_opt pns;
+ 	} proto;
+ 	__be16			num;
+ };
+--- linux-2.6.35.7//include/linux/max17040_battery.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/max17040_battery.h	2011-08-08 12:52:13.000000000 +0800
+@@ -14,6 +14,10 @@
+ 	int (*battery_online)(void);
+ 	int (*charger_online)(void);
+ 	int (*charger_enable)(void);
++	int (*power_supply_register)(struct device *parent,
++		struct power_supply *psy);
++	void (*power_supply_unregister)(struct power_supply *psy);
++	u16 rcomp_value;
+ };
+ 
+ #endif
+--- linux-2.6.35.7//include/linux/msdos_fs.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/msdos_fs.h	2011-08-08 12:52:13.000000000 +0800
+@@ -101,6 +101,7 @@
+ /* <linux/videotext.h> has used 0x72 ('r') in collision, so skip a few */
+ #define FAT_IOCTL_GET_ATTRIBUTES	_IOR('r', 0x10, __u32)
+ #define FAT_IOCTL_SET_ATTRIBUTES	_IOW('r', 0x11, __u32)
++#define VFAT_IOCTL_GET_VOLUME_ID	_IOR('r', 0x12, __u32)
+ 
+ struct fat_boot_sector {
+ 	__u8	ignored[3];	/* Boot strap short or near jump */
+@@ -138,6 +139,17 @@
+ 	__le32   reserved2[4];
+ };
+ 
++struct fat_boot_bsx {
++	__u8     drive;		    /* drive number */
++	__u8     reserved1;
++	__u8     signature;	    /* extended boot signature */
++	__u8     vol_id[4];     /* volume ID */
++	__u8     vol_label[11]; /* volume label */
++	__u8     type[8];       /* file system type */
++};
++#define FAT16_BSX_OFFSET	36 /* offset of fat_boot_bsx in FAT12 and FAT16 */
++#define FAT32_BSX_OFFSET	64 /* offset of fat_boot_bsx in FAT32 */
++
+ struct msdos_dir_entry {
+ 	__u8	name[MSDOS_NAME];/* name and extension */
+ 	__u8	attr;		/* attribute bits */
+--- linux-2.6.35.7//include/linux/percpu_counter.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/percpu_counter.h	2011-08-08 12:52:13.000000000 +0800
+@@ -77,6 +77,11 @@
+ 	return 1;
+ }
+ 
++static inline int percpu_counter_initialized(struct percpu_counter *fbc)
++{
++	return (fbc->counters != NULL);
++}
++
+ #else
+ 
+ struct percpu_counter {
+@@ -132,6 +137,11 @@
+ 	return percpu_counter_read(fbc);
+ }
+ 
++static inline int percpu_counter_initialized(struct percpu_counter *fbc)
++{
++	return 1;
++}
++
+ #endif	/* CONFIG_SMP */
+ 
+ static inline void percpu_counter_inc(struct percpu_counter *fbc)
+--- linux-2.6.35.7//include/linux/poll.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/poll.h	2011-08-08 12:52:13.000000000 +0800
+@@ -73,6 +73,8 @@
+ extern void poll_freewait(struct poll_wqueues *pwq);
+ extern int poll_schedule_timeout(struct poll_wqueues *pwq, int state,
+ 				 ktime_t *expires, unsigned long slack);
++extern long select_estimate_accuracy(struct timespec *tv);
++
+ 
+ static inline int poll_schedule(struct poll_wqueues *pwq, int state)
+ {
+--- linux-2.6.35.7//include/linux/power_supply.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/power_supply.h	2011-08-08 12:52:13.000000000 +0800
+@@ -14,6 +14,7 @@
+ #define __LINUX_POWER_SUPPLY_H__
+ 
+ #include <linux/device.h>
++#include <linux/wakelock.h>
+ #include <linux/workqueue.h>
+ #include <linux/leds.h>
+ 
+@@ -159,6 +160,9 @@
+ 	/* private */
+ 	struct device *dev;
+ 	struct work_struct changed_work;
++	spinlock_t changed_lock;
++	bool changed;
++	struct wake_lock work_wake_lock;
+ 
+ #ifdef CONFIG_LEDS_TRIGGERS
+ 	struct led_trigger *charging_full_trig;
+--- linux-2.6.35.7//include/linux/sched.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/sched.h	2011-08-08 12:52:13.000000000 +0800
+@@ -1077,6 +1077,7 @@
+ 
+ #ifdef CONFIG_FAIR_GROUP_SCHED
+ 	void (*moved_group) (struct task_struct *p, int on_rq);
++	void (*prep_move_group) (struct task_struct *p, int on_rq);
+ #endif
+ };
+ 
+@@ -1682,6 +1683,9 @@
+ extern void task_times(struct task_struct *p, cputime_t *ut, cputime_t *st);
+ extern void thread_group_times(struct task_struct *p, cputime_t *ut, cputime_t *st);
+ 
++extern int task_free_register(struct notifier_block *n);
++extern int task_free_unregister(struct notifier_block *n);
++
+ /*
+  * Per process flags
+  */
+--- linux-2.6.35.7//include/linux/serial_core.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/serial_core.h	2011-08-08 12:52:13.000000000 +0800
+@@ -224,6 +224,7 @@
+ 	void		(*pm)(struct uart_port *, unsigned int state,
+ 			      unsigned int oldstate);
+ 	int		(*set_wake)(struct uart_port *, unsigned int state);
++	void		(*wake_peer)(struct uart_port *);
+ 
+ 	/*
+ 	 * Return a string describing the type of the port
+--- linux-2.6.35.7//include/linux/sockios.h	2010-09-29 09:09:08.000000000 +0800
++++ tiny210//include/linux/sockios.h	2011-08-08 12:52:13.000000000 +0800
+@@ -65,6 +65,7 @@
+ #define SIOCDIFADDR	0x8936		/* delete PA address		*/
+ #define	SIOCSIFHWBROADCAST	0x8937	/* set hardware broadcast addr	*/
+ #define SIOCGIFCOUNT	0x8938		/* get number of devices */
++#define SIOCKILLADDR	0x8939		/* kill sockets with this local addr */
+ 
+ #define SIOCGIFBR	0x8940		/* Bridging support		*/
+ #define SIOCSIFBR	0x8941		/* Set bridging options 	*/

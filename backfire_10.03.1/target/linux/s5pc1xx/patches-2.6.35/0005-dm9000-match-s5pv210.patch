@@ -1,0 +1,30 @@
+--- /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/mach-smdkv210.c	2014-08-07 15:10:13.869729617 +0800
++++ ./arch/arm/mach-s5pv210/mach-smdkv210.c	2014-08-06 19:22:37.664047005 +0800
+@@ -145,7 +145,7 @@
+ }
+ 
+ __setup("ethmac=", dm9000_set_mac);
+-
++#if 0
+ static void __init smdkv210_dm9000_set(void)
+ {
+ 	unsigned int tmp;
+@@ -164,6 +164,8 @@
+ }
+ #endif
+ 
++#endif
++
+ 
+ ////////////////////////////////
+ #define S5PV210_PA_NAND                 (0xB0E00000)
+@@ -194,6 +196,9 @@
+ 	&s3c_device_ts,
+ 	&s3c_device_wdt,
+ 	&s3c_device_nand,
++#ifdef CONFIG_DM9000
++	&smdkv210_device_dm9000,	
++#endif
+ };
+ 
+ static struct s3c2410_ts_mach_info s3c_ts_platform __initdata = {
