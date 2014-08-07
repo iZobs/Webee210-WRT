@@ -1,0 +1,268 @@
+From ced180b53cfeb7695b79ba70971c1920b6c6ca02 Mon Sep 17 00:00:00 2001
+From: izobs <ivincentlin@gmail.com>
+Date: Wed, 6 Aug 2014 15:33:24 +0800
+Subject: [PATCH] dm9000-16-bit
+
+---
+ arch/arm/mach-s5pv210/mach-smdkv210.c |   92 +++++++++++++++++++++++++++++++++
+ drivers/net/Kconfig                   |   24 +++++++++
+ drivers/net/Makefile                  |    2 +
+ drivers/net/dm9000.c                  |   60 +++++++++++++++------
+ 4 files changed, 163 insertions(+), 15 deletions(-)
+
+diff --git a/arch/arm/mach-s5pv210/mach-smdkv210.c b/arch/arm/mach-s5pv210/mach-smdkv210.c
+index c68db3c..8775dc9 100644
+--- a/arch/arm/mach-s5pv210/mach-smdkv210.c
++++ b/arch/arm/mach-s5pv210/mach-smdkv210.c
+@@ -73,6 +73,98 @@ static struct s3c2410_uartcfg smdkv210_uartcfgs[] __initdata = {
+ 	},
+ };
+ 
++
++#ifdef CONFIG_DM9000
++#include <linux/dm9000.h>
++
++/* physical address for dm9000a ...kgene.kim@samsung.com */
++#define S5PV210_PA_DM9000_A     (0x88001000)
++#define S5PV210_PA_DM9000_F     (S5PV210_PA_DM9000_A + 0x300C)
++
++static struct resource dm9000_resources[] = {
++	[0] = {
++		.start	= S5PV210_PA_DM9000_A,
++		.end	= S5PV210_PA_DM9000_A + SZ_1K*4 - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= S5PV210_PA_DM9000_F,
++		.end	= S5PV210_PA_DM9000_F + SZ_1K*4 - 1,
++		.flags	= IORESOURCE_MEM,
++	},
++	[2] = {
++		.start	= IRQ_EINT(7),
++		.end	= IRQ_EINT(7),
++		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL,
++	},
++};
++
++static struct dm9000_plat_data dm9000_platdata = {
++	.flags		= DM9000_PLATF_16BITONLY | DM9000_PLATF_NO_EEPROM,
++	.dev_addr	= { 0x08, 0x90, 0x00, 0xa0, 0x02, 0x10 },
++};
++
++struct platform_device smdkv210_device_dm9000 = {
++	.name		= "dm9000",
++	.id			= -1,
++	.num_resources	= ARRAY_SIZE(dm9000_resources),
++	.resource	= dm9000_resources,
++	.dev		= {
++		.platform_data	= &dm9000_platdata,
++	},
++};
++
++static int __init dm9000_set_mac(char *str) {
++	unsigned char addr[6];
++	unsigned int val;
++	int idx = 0;
++	char *p = str, *end;
++
++	while (*p && idx < 6) {
++		val = simple_strtoul(p, &end, 16);
++		if (end <= p) {
++			/* convert failed */
++			break;
++		} else {
++			addr[idx++] = val;
++			p = end;
++			if (*p == ':'|| *p == '-') {
++				p++;
++			} else {
++				break;
++			}
++		}
++	}
++
++	if (idx == 6) {
++		printk("Setup ethernet address to %pM\n", addr);
++		memcpy(dm9000_platdata.param_addr, addr, 6);
++	}
++
++	return 1;
++}
++
++__setup("ethmac=", dm9000_set_mac);
++
++static void __init smdkv210_dm9000_set(void)
++{
++	unsigned int tmp;
++
++	tmp = ((0<<28)|(0<<24)|(5<<16)|(0<<12)|(0<<8)|(0<<4)|(0<<0));
++	__raw_writel(tmp, (S5P_SROM_BW+0x08));
++
++	tmp = __raw_readl(S5P_SROM_BW);
++	tmp &= ~(0xf << 4);
++	tmp |= (0x1 << 4); /* dm9000 16bit */
++	__raw_writel(tmp, S5P_SROM_BW);
++
++    gpio_request(S5PV210_MP01(1), "nCS1");
++    s3c_gpio_cfgpin(S5PV210_MP01(1), S3C_GPIO_SFN(2));
++    gpio_free(S5PV210_MP01(1));
++}
++#endif
++
++
+ ////////////////////////////////
+ #define S5PV210_PA_NAND                 (0xB0E00000)
+ #define S5PV210_SZ_NAND                 SZ_1M
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+index ce2fcdd..8f33412 100644
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -958,6 +958,13 @@ config DM9000
+ 	  To compile this driver as a module, choose M here.  The module
+ 	  will be called dm9000.
+ 
++config DM9000_16BIT
++	bool "DM9000 16-bit"
++	depends on DM9000
++	default n
++	help
++	  Support DM9000 ethernet controller with 16bit data bus
++
+ config DM9000_DEBUGLEVEL
+ 	int "DM9000 maximum debug level"
+ 	depends on DM9000
+@@ -3184,6 +3191,23 @@ config PPPOL2TP
+ 	  used by ISPs and enterprises to tunnel PPP traffic over UDP
+ 	  tunnels. L2TP is replacing PPTP for VPN uses.
+ 
++config PPPOLAC
++	tristate "PPP on L2TP Access Concentrator"
++	depends on PPP && INET
++	help
++	  L2TP (RFC 2661) is a tunneling protocol widely used in virtual private
++	  networks. This driver handles L2TP data packets between a UDP socket
++	  and a PPP channel, but only permits one session per socket. Thus it is
++	  fairly simple and suited for clients.
++
++config PPPOPNS
++	tristate "PPP on PPTP Network Server"
++	depends on PPP && INET
++	help
++	  PPTP (RFC 2637) is a tunneling protocol widely used in virtual private
++	  networks. This driver handles PPTP data packets between a RAW socket
++	  and a PPP channel. It is fairly simple and easy to use.
++
+ config SLIP
+ 	tristate "SLIP (serial line) support"
+ 	---help---
+diff --git a/drivers/net/Makefile b/drivers/net/Makefile
+index 0a0512a..79bc9ca 100644
+--- a/drivers/net/Makefile
++++ b/drivers/net/Makefile
+@@ -162,6 +162,8 @@ obj-$(CONFIG_PPP_BSDCOMP) += bsd_comp.o
+ obj-$(CONFIG_PPP_MPPE) += ppp_mppe.o
+ obj-$(CONFIG_PPPOE) += pppox.o pppoe.o
+ obj-$(CONFIG_PPPOL2TP) += pppox.o
++obj-$(CONFIG_PPPOLAC) += pppox.o pppolac.o
++obj-$(CONFIG_PPPOPNS) += pppox.o pppopns.o
+ 
+ obj-$(CONFIG_SLIP) += slip.o
+ obj-$(CONFIG_SLHC) += slhc.o
+diff --git a/drivers/net/dm9000.c b/drivers/net/dm9000.c
+index abcc838..d67153a 100644
+--- a/drivers/net/dm9000.c
++++ b/drivers/net/dm9000.c
+@@ -152,18 +152,6 @@ static inline board_info_t *to_dm9000_board(struct net_device *dev)
+ 
+ /* DM9000 network board routine ---------------------------- */
+ 
+-static void
+-dm9000_reset(board_info_t * db)
+-{
+-	dev_dbg(db->dev, "resetting device\n");
+-
+-	/* RESET device */
+-	writeb(DM9000_NCR, db->io_addr);
+-	udelay(200);
+-	writeb(NCR_RST, db->io_data);
+-	udelay(200);
+-}
+-
+ /*
+  *   Read a byte from I/O port
+  */
+@@ -185,6 +173,43 @@ iow(board_info_t * db, int reg, int value)
+ 	writeb(value, db->io_data);
+ }
+ 
++#if defined(CONFIG_DM9000_16BIT)
++static void dm9000_reset(board_info_t *db)
++{
++	dev_dbg(db->dev, "resetting device\n");
++
++	iow(db, DM9000_GPCR, 0x0f);
++	iow(db, DM9000_GPR, 0);
++	iow(db, DM9000_NCR, 3);
++
++	do {
++		udelay(100);
++	} while (ior(db, DM9000_NCR) & 0x1);
++
++	iow(db, DM9000_NCR, 0);
++	iow(db, DM9000_NCR, 3);
++
++	do {
++		udelay(100);
++	} while (ior(db, DM9000_NCR) & 0x1);
++
++	if ((ior(db, DM9000_PIDL) != 0) || (ior(db, DM9000_PIDH) != 0x90))
++		printk(KERN_INFO "ERROR : resetting ");
++}
++#else
++static void
++dm9000_reset(board_info_t * db)
++{
++	dev_dbg(db->dev, "resetting device\n");
++
++	/* RESET device */
++	writeb(DM9000_NCR, db->io_addr);
++	udelay(200);
++	writeb(NCR_RST, db->io_data);
++	udelay(200);
++}
++#endif
++
+ /* routines for sending block to chip */
+ 
+ static void dm9000_outblk_8bit(void __iomem *reg, void *data, int count)
+@@ -1579,19 +1604,24 @@ dm9000_probe(struct platform_device *pdev)
+ 	for (i = 0; i < 6; i += 2)
+ 		dm9000_read_eeprom(db, i / 2, ndev->dev_addr+i);
+ 
++	/* try MAC address passed by kernel command line */
+ 	if (!is_valid_ether_addr(ndev->dev_addr) && pdata != NULL) {
+-		mac_src = "platform data";
+-		memcpy(ndev->dev_addr, pdata->dev_addr, 6);
++		mac_src = "param data";
++		memcpy(ndev->dev_addr, pdata->param_addr, 6);
+ 	}
+ 
+ 	if (!is_valid_ether_addr(ndev->dev_addr)) {
+ 		/* try reading from mac */
+-		
+ 		mac_src = "chip";
+ 		for (i = 0; i < 6; i++)
+ 			ndev->dev_addr[i] = ior(db, i+DM9000_PAR);
+ 	}
+ 
++	if (!is_valid_ether_addr(ndev->dev_addr) && pdata != NULL) {
++		mac_src = "platform data";
++		memcpy(ndev->dev_addr, pdata->dev_addr, 6);
++	}
++
+ 	if (!is_valid_ether_addr(ndev->dev_addr))
+ 		dev_warn(db->dev, "%s: Invalid ethernet MAC address. Please "
+ 			 "set using ifconfig\n", ndev->name);
+-- 
+1.7.9.5
+
