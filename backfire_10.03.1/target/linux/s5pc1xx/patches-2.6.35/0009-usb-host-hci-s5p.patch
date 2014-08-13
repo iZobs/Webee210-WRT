@@ -1,0 +1,32 @@
+diff -Nur linux-2.6.35.7/drivers/usb/host/ehci-hcd.c tiny210/drivers/usb/host/ehci-hcd.c
+--- linux-2.6.35.7/drivers/usb/host/ehci-hcd.c	2010-09-29 09:09:08.000000000 +0800
++++ tiny210/drivers/usb/host/ehci-hcd.c	2011-08-08 12:52:21.000000000 +0800
+@@ -1158,6 +1158,12 @@
+ #define	PLATFORM_DRIVER		ehci_atmel_driver
+ #endif
+ 
++#if defined(CONFIG_ARCH_S5PV210) || defined(CONFIG_ARCH_S5P6450) || \
++    defined(CONFIG_ARCH_S5PV310)
++#include "ehci-s5pv210.c"
++#define PLATFORM_DRIVER		ehci_hcd_s5pv210_driver
++#endif
++
+ #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \
+     !defined(PS3_SYSTEM_BUS_DRIVER) && !defined(OF_PLATFORM_DRIVER) && \
+     !defined(XILINX_OF_PLATFORM_DRIVER)
+diff -Nur linux-2.6.35.7/drivers/usb/host/ohci-hcd.c tiny210/drivers/usb/host/ohci-hcd.c
+--- linux-2.6.35.7/drivers/usb/host/ohci-hcd.c	2010-09-29 09:09:08.000000000 +0800
++++ tiny210/drivers/usb/host/ohci-hcd.c	2011-08-08 12:52:21.000000000 +0800
+@@ -1006,6 +1006,12 @@
+ #define PLATFORM_DRIVER		ohci_hcd_s3c2410_driver
+ #endif
+ 
++#if defined(CONFIG_ARCH_S5PV210) || defined(CONFIG_ARCH_S5P6450) || \
++    defined(CONFIG_ARCH_S5PV310)
++#include "ohci-s5pv210.c"
++#define PLATFORM_DRIVER		ohci_hcd_s5pv210_driver
++#endif
++
+ #ifdef CONFIG_USB_OHCI_HCD_OMAP1
+ #include "ohci-omap.c"
+ #define OMAP1_PLATFORM_DRIVER	ohci_hcd_omap_driver

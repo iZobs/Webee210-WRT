@@ -1,0 +1,201 @@
+diff -ruN /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/mach-smdkv210.c ./arch/arm/mach-s5pv210/mach-smdkv210.c
+--- /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/mach-s5pv210/mach-smdkv210.c	2014-08-13 11:45:50.126978133 +0800
++++ ./arch/arm/mach-s5pv210/mach-smdkv210.c	2014-08-08 18:11:29.000000000 +0800
+@@ -12,6 +12,9 @@
+ #include <linux/types.h>
+ #include <linux/init.h>
+ #include <linux/serial_core.h>
++#include <linux/delay.h>
++#include <plat/regs-otg.h>
++
+ 
+ #include <asm/mach/arch.h>
+ #include <asm/mach/map.h>
+@@ -27,6 +30,8 @@
+ #include <plat/cpu.h>
+ #include <plat/adc.h>
+ #include <plat/ts.h>
++#include <linux/usb/ch9.h>
++#include <linux/clk.h>
+ 
+ /* Following are default values for UCON, ULCON and UFCON UART registers */
+ #define S5PV210_UCON_DEFAULT	(S3C2410_UCON_TXILEVEL |	\
+@@ -199,8 +204,88 @@
+ #ifdef CONFIG_DM9000
+ 	&smdkv210_device_dm9000,	
+ #endif
++	&s3c_device_usb_ohci,
++	&s3c_device_usb_ehci,
+ };
+ 
++
++#ifdef CONFIG_USB_SUPPORT
++/* Initializes OTG Phy. */
++void otg_phy_init(void)
++{
++	/* USB PHY0 Enable */
++	writel(readl(S5P_USB_PHY_CONTROL) | (0x1<<0),
++			S5P_USB_PHY_CONTROL);
++	writel((readl(S3C_USBOTG_PHYPWR) & ~(0x3<<3) & ~(0x1<<0)) | (0x1<<5),
++			S3C_USBOTG_PHYPWR);
++	writel((readl(S3C_USBOTG_PHYCLK) & ~(0x5<<2)) | (0x3<<0),
++			S3C_USBOTG_PHYCLK);
++	writel((readl(S3C_USBOTG_RSTCON) & ~(0x3<<1)) | (0x1<<0),
++			S3C_USBOTG_RSTCON);
++	msleep(1);
++	writel(readl(S3C_USBOTG_RSTCON) & ~(0x7<<0),
++			S3C_USBOTG_RSTCON);
++	msleep(1);
++
++	/* rising/falling time */
++	writel(readl(S3C_USBOTG_PHYTUNE) | (0x1<<20),
++			S3C_USBOTG_PHYTUNE);
++
++	/* set DC level as 6 (6%) */
++	writel((readl(S3C_USBOTG_PHYTUNE) & ~(0xf)) | (0x1<<2) | (0x1<<1),
++			S3C_USBOTG_PHYTUNE);
++}
++EXPORT_SYMBOL(otg_phy_init);
++
++/* USB Control request data struct must be located here for DMA transfer */
++struct usb_ctrlrequest usb_ctrl __attribute__((aligned(64)));
++
++/* OTG PHY Power Off */
++void otg_phy_off(void)
++{
++	writel(readl(S3C_USBOTG_PHYPWR) | (0x3<<3),
++			S3C_USBOTG_PHYPWR);
++	writel(readl(S5P_USB_PHY_CONTROL) & ~(1<<0),
++			S5P_USB_PHY_CONTROL);
++}
++EXPORT_SYMBOL(otg_phy_off);
++
++void usb_host_phy_off(void)
++{
++	__raw_writel(__raw_readl(S3C_USBOTG_PHYPWR) | (0x1<<7)|(0x1<<6),
++			S3C_USBOTG_PHYPWR);
++	__raw_writel(__raw_readl(S5P_USB_PHY_CONTROL) & ~(1<<1),
++			S5P_USB_PHY_CONTROL);
++}
++EXPORT_SYMBOL(usb_host_phy_off);
++
++void usb_host_phy_init(void)
++{
++	struct clk *otg_clk;
++
++	otg_clk = clk_get(NULL, "otg");
++	clk_enable(otg_clk);
++
++	if (readl(S5P_USB_PHY_CONTROL) & (0x1<<1)) {
++		return;
++	}
++
++	__raw_writel(__raw_readl(S5P_USB_PHY_CONTROL) | (0x1<<1),
++			S5P_USB_PHY_CONTROL);
++	__raw_writel((__raw_readl(S3C_USBOTG_PHYPWR)
++			& ~(0x1<<7) & ~(0x1<<6)) | (0x1<<8) | (0x1<<5),
++			S3C_USBOTG_PHYPWR);
++	__raw_writel((__raw_readl(S3C_USBOTG_PHYCLK) & ~(0x1<<7)) | (0x3<<0),
++			S3C_USBOTG_PHYCLK);
++	__raw_writel((__raw_readl(S3C_USBOTG_RSTCON)) | (0x1<<4) | (0x1<<3),
++			S3C_USBOTG_RSTCON);
++	udelay(15);
++	__raw_writel(__raw_readl(S3C_USBOTG_RSTCON) & ~(0x1<<4) & ~(0x1<<3),
++			S3C_USBOTG_RSTCON);
++}
++EXPORT_SYMBOL(usb_host_phy_init);
++#endif
++
+ static struct s3c2410_ts_mach_info s3c_ts_platform __initdata = {
+ 	.delay			= 10000,
+ 	.presc			= 49,
+diff -ruN /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-s5p/devs.c ./arch/arm/plat-s5p/devs.c
+--- /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-s5p/devs.c	2014-08-11 12:07:18.552857817 +0800
++++ ./arch/arm/plat-s5p/devs.c	2014-08-08 18:10:19.000000000 +0800
+@@ -366,22 +366,6 @@
+ };
+ #endif
+ 
+-/* NAND Controller */
+-static struct resource s3c_nand_resource[] = {
+-	[0] = {
+-		.start	= S5P_PA_NAND,
+-		.end	= S5P_PA_NAND + S5P_SZ_NAND - 1,
+-		.flags	= IORESOURCE_MEM,
+-	}
+-};
+-
+-struct platform_device s3c_device_nand = {
+-	.name		= "nand",
+-	.id		= -1,
+-	.num_resources	= ARRAY_SIZE(s3c_nand_resource),
+-	.resource	= s3c_nand_resource,
+-};
+-
+ #if defined(CONFIG_S5P_DEV_FB)
+ static struct resource s3cfb_resource[] = {
+ 	[0] = {
+diff -ruN /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-s5p/Makefile ./arch/arm/plat-s5p/Makefile
+--- /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-s5p/Makefile	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/plat-s5p/Makefile	2014-08-08 18:07:33.000000000 +0800
+@@ -16,5 +16,6 @@
+ obj-y				+= cpu.o
+ obj-y				+= clock.o
+ obj-y				+= irq.o
++obj-y				+= devs.o
+ obj-$(CONFIG_S5P_EXT_INT)	+= irq-eint.o
+ 
+diff -ruN /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-samsung/include/plat/devs.h ./arch/arm/plat-samsung/include/plat/devs.h
+--- /home/webee-wrt/openWRT/webee210-WRT/Webee210-WRT/backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7/arch/arm/plat-samsung/include/plat/devs.h	2010-09-29 09:09:08.000000000 +0800
++++ ./arch/arm/plat-samsung/include/plat/devs.h	2014-08-08 18:07:33.000000000 +0800
+@@ -25,6 +25,17 @@
+ 
+ extern struct platform_device s3c_device_timer[];
+ 
++extern struct platform_device s3c24xx_uart_device0;
++extern struct platform_device s3c24xx_uart_device1;
++extern struct platform_device s3c24xx_uart_device2;
++extern struct platform_device s3c24xx_uart_device3;
++
++extern struct platform_device s5pv210_device_fiqdbg_uart0;
++extern struct platform_device s5pv210_device_fiqdbg_uart1;
++extern struct platform_device s5pv210_device_fiqdbg_uart2;
++extern struct platform_device s5pv210_device_fiqdbg_uart3;
++
++
+ extern struct platform_device s3c64xx_device_iis0;
+ extern struct platform_device s3c64xx_device_iis1;
+ extern struct platform_device s3c64xx_device_iisv4;
+@@ -58,13 +69,15 @@
+ extern struct platform_device s3c_device_spi0;
+ extern struct platform_device s3c_device_spi1;
+ 
+-extern struct platform_device s5pc100_device_spi0;
+-extern struct platform_device s5pc100_device_spi1;
+-extern struct platform_device s5pc100_device_spi2;
+-extern struct platform_device s5pv210_device_spi0;
+-extern struct platform_device s5pv210_device_spi1;
+-extern struct platform_device s5p6440_device_spi0;
+-extern struct platform_device s5p6440_device_spi1;
++extern struct platform_device s3c_device_fimc0;
++extern struct platform_device s3c_device_fimc1;
++extern struct platform_device s3c_device_fimc2;
++extern struct platform_device s3c_device_csis;
++extern struct platform_device s3c_device_ipc;
++extern struct platform_device s3c_device_mfc;
++extern struct platform_device s3c_device_jpeg;
++extern struct platform_device s3c_device_g3d;                                   
++extern struct platform_device s3c_device_g2d;
+ 
+ extern struct platform_device s3c_device_hwmon;
+ 
+@@ -76,6 +89,9 @@
+ extern struct platform_device s3c_device_usbgadget;
+ extern struct platform_device s3c_device_usb_hsotg;
+ 
++extern struct platform_device s3c_device_usb_ehci;
++extern struct platform_device s3c_device_usb_ohci; 
++
+ extern struct platform_device s5pv210_device_ac97;
+ extern struct platform_device s5pv210_device_pcm0;
+ extern struct platform_device s5pv210_device_pcm1;
