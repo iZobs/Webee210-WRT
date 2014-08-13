@@ -1,0 +1,18 @@
+--- linux-2.6.35.7/drivers/usb/Kconfig	2010-09-29 09:09:08.000000000 +0800
++++ tiny210/drivers/usb/Kconfig	2011-08-08 12:52:21.000000000 +0800
+@@ -52,6 +52,7 @@
+ 	default y if CPU_SUBTYPE_SH7763
+ 	default y if CPU_SUBTYPE_SH7786
+ 	# more:
++	default y if ARCH_S5PV210
+ 	default PCI
+ 
+ # some non-PCI hcds implement EHCI
+@@ -64,6 +65,7 @@
+ 	default y if ARCH_AT91SAM9G45
+ 	default y if ARCH_MXC
+ 	default y if ARCH_OMAP3
++	default y if ARCH_S5PV210
+ 	default PCI
+ 
+ # ARM SA1111 chips have a non-PCI based "OHCI-compatible" USB host interface.
