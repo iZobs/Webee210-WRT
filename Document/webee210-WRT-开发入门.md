@@ -175,10 +175,14 @@ diff 两个文件夹中的不同：
 
 __3.openWRT的补丁管理工具quilt__
 
-quilt新建一个补丁，                         
+quilt新建一个补丁，                                                 
+
+```
      $ cd backfire_10.03.1/build_dir/linux-s5pc1xx_webee210/linux-2.6.35.7
      $ quilt new platform/0001-webee210-SDRAM.patch
      Patch platform/0001-webee210-SDRAM.patch is now on top                        
+
+```
 
 将0001-webee210-SDRAM.patch复制到linux-2.6.35.7目录下的`patches`目录，              
 
