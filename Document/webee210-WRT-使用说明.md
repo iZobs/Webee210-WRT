@@ -167,7 +167,7 @@ ra0       Link encap:Ethernet  HWaddr 98:3F:9F:23:C4:28
 
 链接wifi热点，用telnet登陆192.168.1.1（telnet 默认是192.168.1.1。所以跟pc链接的网卡的ip必须是这个网段的）
 用浏览器登陆192.168.1.1，可以查看路由配置界面：
-![webee210-WRT](/picture/webee210-WRT.png)
+![webee210-WRT](https://github.com/iZobs/Webee210-WRT/blob/master/Document/picture/webee210-WRT.png)
 
 
 
